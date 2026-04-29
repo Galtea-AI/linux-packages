@@ -64,21 +64,39 @@ jobs:
 
       - name: 🛠️  Install indexing tools
         run: |
-          echo "::group::🛠️  Installing reprepro / createrepo_c / gnupg"
+          echo "::group::🛠️  Installing reprepro / createrepo_c / rpm / gnupg"
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends reprepro createrepo-c gnupg
+          sudo apt-get install -y --no-install-recommends reprepro createrepo-c rpm gnupg
           echo ""
           echo "  • reprepro:      $(reprepro --version | head -1)"
           echo "  • createrepo_c:  $(createrepo_c --version 2>&1 | head -1)"
+          echo "  • rpmsign:       $(rpmsign --version 2>&1 | head -1)"
           echo "  • gpg:           $(gpg --version | head -1)"
           echo "::endgroup::"
 
       - name: 🔑 Import GPG signing key
+        id: import-gpg
         uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd  # v7.0.0
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
           trust_level: 5
+
+      - name: ⚙️  Configure rpm macros for non-interactive signing
+        env:
+          GPG_NAME: ${{ steps.import-gpg.outputs.email }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # rpmsign shells out to gpg via the %__gpg_sign_cmd macro. The
+          # default macro doesn't pass the passphrase, so signing fails
+          # in CI (no TTY for pinentry). We override the command to use
+          # --pinentry-mode loopback + --passphrase, mirroring how the
+          # rest of the workflow signs Release / repomd.xml.
+          cat > ~/.rpmmacros <<MACROS
+          %_signature gpg
+          %_gpg_name $GPG_NAME
+          %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
+          MACROS
 
       - name: 🎯 Determine target releases
         id: targets
@@ -217,7 +235,24 @@ jobs:
           echo ""
           echo "🎉 Ingested $TOTAL_DEB .deb and $TOTAL_RPM .rpm across $(echo $TARGETS | wc -w) release(s)"
 
-      - name: 🔏 Regenerate YUM metadata and sign
+      - name: 🔏 Sign .rpm packages
+        if: steps.targets.outputs.targets != ''
+        run: |
+          set -euo pipefail
+          echo "::group::🔏 rpmsign --addsign on every .rpm in yum/"
+          # DNF with gpgcheck=1 validates BOTH the repodata signature
+          # (repomd.xml.asc) AND the embedded signature inside each .rpm.
+          # GoReleaser's nfpms produces unsigned .rpm files, so we sign
+          # them here with the same release-signing key. Idempotent —
+          # rpmsign overwrites any existing embedded signature.
+          shopt -s nullglob
+          for rpm in yum/*.rpm; do
+            rpmsign --addsign "$rpm"
+            echo "  ✔  $(basename "$rpm")"
+          done
+          echo "::endgroup::"
+
+      - name: 🔏 Regenerate YUM metadata and sign repodata
         if: steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
