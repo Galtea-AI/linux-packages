@@ -1,4 +1,4 @@
-name: Sync APT/YUM repository
+name: 📦 Sync APT/YUM repository
 
 on:
   # Low-latency trigger fired by the monorepo after a CLI release publishes.
@@ -9,11 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 'Wipe and rebuild the entire index from scratch'
+        description: '🧨 Wipe and rebuild the entire index from scratch'
         type: boolean
         default: false
       version:
-        description: 'Reindex a single release tag (e.g. v0.5.2). Leave blank for incremental sync.'
+        description: '🎯 Reindex a single release tag (e.g. v0.5.2). Leave blank for incremental sync.'
         type: string
         required: false
 
@@ -34,25 +34,53 @@ env:
 
 jobs:
   sync:
+    name: 🔄 Sync index
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: 📥 Checkout linux-packages
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
           fetch-depth: 0
 
-      - name: Install indexing tools
+      - name: 🛎️  Trigger context
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          DISPATCH_TYPE: ${{ github.event.action }}
+          INPUT_FORCE: ${{ github.event.inputs.force }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends reprepro createrepo-c gnupg
+          echo "::group::🛎️  Why am I running?"
+          echo "  • Event:     $EVENT"
+          echo "  • Actor:     $ACTOR"
+          if [ "$EVENT" = "repository_dispatch" ]; then
+            echo "  • Dispatch:  $DISPATCH_TYPE  (likely a fresh CLI release on the monorepo)"
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "  • Inputs:    force=${INPUT_FORCE:-false}  version=${INPUT_VERSION:-<none>}"
+          elif [ "$EVENT" = "schedule" ]; then
+            echo "  • Schedule:  daily drift catcher"
+          fi
+          echo "::endgroup::"
 
-      - name: Import GPG signing key
+      - name: 🛠️  Install indexing tools
+        run: |
+          echo "::group::🛠️  Installing reprepro / createrepo_c / gnupg"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends reprepro createrepo-c gnupg
+          echo ""
+          echo "  • reprepro:      $(reprepro --version | head -1)"
+          echo "  • createrepo_c:  $(createrepo_c --version 2>&1 | head -1)"
+          echo "  • gpg:           $(gpg --version | head -1)"
+          echo "::endgroup::"
+
+      - name: 🔑 Import GPG signing key
         uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec  # v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
           trust_level: 5
 
-      - name: Determine target releases
+      - name: 🎯 Determine target releases
         id: targets
         env:
           GH_TOKEN: ${{ secrets.MONOREPO_READ_TOKEN }}
@@ -61,20 +89,32 @@ jobs:
         run: |
           set -euo pipefail
 
-          # All monorepo releases whose assets contain galtea_*.deb / galtea_*.rpm.
+          echo "::group::📡 Listing CLI releases on $MONOREPO"
           ALL_RELEASES=$(gh release list -R "$MONOREPO" --limit 200 --json tagName,assets \
             | jq -r '.[] | select(.assets[]?.name | test("^galtea_.*\\.(deb|rpm)$")) | .tagName' \
             | sort -V \
             || true)
+          ALL_COUNT=$(echo "$ALL_RELEASES" | grep -c . || true)
+          echo "  • Found $ALL_COUNT release(s) carrying galtea_*.deb / .rpm assets"
+          if [ "$ALL_COUNT" -gt 0 ]; then
+            echo "$ALL_RELEASES" | sed 's/^/      /'
+          fi
+          echo "::endgroup::"
 
           if [ "$FORCE" = "true" ]; then
             MODE="force"
+            EMOJI="🧨"
+            REASON="full rebuild — wiping existing index and reindexing every release"
             TARGETS="$ALL_RELEASES"
           elif [ -n "$VERSION" ]; then
             MODE="version"
+            EMOJI="🎯"
+            REASON="single-release reindex"
             TARGETS="$VERSION"
           else
             MODE="incremental"
+            EMOJI="➕"
+            REASON="incremental sync — adding only releases missing from the index"
             TARGETS=""
             for tag in $ALL_RELEASES; do
               version_no_v="${tag#v}"
@@ -86,23 +126,41 @@ jobs:
 
           # Trim leading/trailing whitespace.
           TARGETS=$(echo "$TARGETS" | xargs || true)
+          TARGET_COUNT=$(echo "$TARGETS" | wc -w | tr -d ' ')
 
           {
             echo "mode=$MODE"
+            echo "emoji=$EMOJI"
             echo "targets=$TARGETS"
+            echo "target_count=$TARGET_COUNT"
           } >> "$GITHUB_OUTPUT"
 
-          echo "Mode:    $MODE"
-          echo "Targets: ${TARGETS:-<none>}"
+          echo "::group::$EMOJI Plan"
+          echo "  • Mode:    $MODE"
+          echo "  • Reason:  $REASON"
+          echo "  • Targets: $TARGET_COUNT release(s)"
+          if [ "$TARGET_COUNT" -gt 0 ]; then
+            echo "$TARGETS" | tr ' ' '\n' | sed 's/^/      /'
+          else
+            echo "      (nothing to do — index is already in sync)"
+          fi
+          echo "::endgroup::"
 
-      - name: Force mode — wipe existing index
+      - name: 🧹 Force mode — wipe existing index
         if: steps.targets.outputs.mode == 'force'
         run: |
+          set -euo pipefail
+          echo "::group::🧹 Wiping existing index (force mode)"
+          DEB_BEFORE=$(find apt/pool -name '*.deb' 2>/dev/null | wc -l | tr -d ' ')
+          RPM_BEFORE=$(find yum -maxdepth 1 -name '*.rpm' 2>/dev/null | wc -l | tr -d ' ')
+          echo "  • Before: $DEB_BEFORE .deb in apt/pool, $RPM_BEFORE .rpm in yum/"
           rm -rf apt/db apt/dists apt/pool
           rm -rf yum/repodata
           find yum -maxdepth 1 -type f -name '*.rpm' -delete
+          echo "  • After:  index wiped — every artifact will be re-ingested"
+          echo "::endgroup::"
 
-      - name: Download and ingest target releases
+      - name: ⬇️  Download and ingest target releases
         if: steps.targets.outputs.targets != ''
         env:
           GH_TOKEN: ${{ secrets.MONOREPO_READ_TOKEN }}
@@ -110,46 +168,112 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p staging
+          TOTAL_DEB=0
+          TOTAL_RPM=0
 
           for tag in $TARGETS; do
-            echo "::group::Processing $tag"
+            echo "::group::📦 $tag"
             mkdir -p "staging/$tag"
+
+            echo "  ⬇️  Downloading assets from $MONOREPO@$tag …"
             gh release download "$tag" -R "$MONOREPO" \
               --pattern 'galtea_*.deb' \
               --pattern 'galtea_*.rpm' \
               --dir "staging/$tag" \
               --clobber
+            DEB_COUNT=$(find "staging/$tag" -maxdepth 1 -name '*.deb' | wc -l | tr -d ' ')
+            RPM_COUNT=$(find "staging/$tag" -maxdepth 1 -name '*.rpm' | wc -l | tr -d ' ')
+            echo "  ✔  Downloaded: $DEB_COUNT .deb, $RPM_COUNT .rpm"
 
+            echo "  🔨 reprepro includedeb $APT_DISTRIBUTION …"
             for deb in staging/"$tag"/*.deb; do
               [ -e "$deb" ] || continue
               reprepro -b apt --waitforlock 30 includedeb "$APT_DISTRIBUTION" "$deb"
+              echo "      + $(basename "$deb")"
             done
 
+            echo "  🗂️  Copying .rpm into yum/ …"
             for rpm in staging/"$tag"/*.rpm; do
               [ -e "$rpm" ] || continue
               cp -f "$rpm" yum/
+              echo "      + $(basename "$rpm")"
             done
+
+            TOTAL_DEB=$((TOTAL_DEB + DEB_COUNT))
+            TOTAL_RPM=$((TOTAL_RPM + RPM_COUNT))
             echo "::endgroup::"
           done
 
-      - name: Regenerate YUM metadata and sign
+          echo "ingested_deb=$TOTAL_DEB" >> "$GITHUB_OUTPUT"
+          echo "ingested_rpm=$TOTAL_RPM" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "🎉 Ingested $TOTAL_DEB .deb and $TOTAL_RPM .rpm across $(echo $TARGETS | wc -w) release(s)"
+
+      - name: 🔏 Regenerate YUM metadata and sign
         if: steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
+          echo "::group::🔏 createrepo_c + gpg --detach-sign on yum/repodata/repomd.xml"
           createrepo_c --update yum/
           rm -f yum/repodata/repomd.xml.asc
           gpg --batch --yes --detach-sign --armor yum/repodata/repomd.xml
+          echo "  ✔  YUM metadata regenerated and signed"
+          ls -la yum/repodata/ | sed 's/^/      /'
+          echo "::endgroup::"
 
-      - name: Commit and push
+      - name: 🚀 Commit and push
+        id: commit
         run: |
           set -euo pipefail
           git config user.name 'galtea-release-bot'
           git config user.email 'noreply@galtea.ai'
           git add -A
+
           if git diff --cached --quiet; then
-            echo "No changes to commit"
+            echo "::group::🟰 No changes — index is already up to date"
+            echo "  • Nothing to commit; this is normal for incremental runs that find no new releases."
+            echo "::endgroup::"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          MSG="sync(${{ steps.targets.outputs.mode }}): ${{ steps.targets.outputs.targets }}"
+
+          MODE="${{ steps.targets.outputs.mode }}"
+          EMOJI="${{ steps.targets.outputs.emoji }}"
+          TARGETS="${{ steps.targets.outputs.targets }}"
+          MSG="$EMOJI sync($MODE): $TARGETS"
+
+          echo "::group::📊 Diff summary"
+          git diff --cached --stat | tail -20 | sed 's/^/      /'
+          echo "::endgroup::"
+
+          echo "::group::🚀 Committing and pushing"
+          echo "  • Message: $MSG"
           git commit -m "$MSG"
           git push
+          echo "  ✔  Pushed to main — GitHub Pages will republish in 1–3 min"
+          echo "::endgroup::"
+
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 🏁 Run summary
+        if: always()
+        env:
+          MODE: ${{ steps.targets.outputs.mode }}
+          EMOJI: ${{ steps.targets.outputs.emoji }}
+          TARGET_COUNT: ${{ steps.targets.outputs.target_count }}
+          TARGETS: ${{ steps.targets.outputs.targets }}
+          PUSHED: ${{ steps.commit.outputs.pushed }}
+        run: |
+          {
+            echo "## ${EMOJI:-🟰} Sync run summary"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Mode | \`${MODE:-no-op}\` |"
+            echo "| Targets | ${TARGET_COUNT:-0} release(s) |"
+            if [ -n "${TARGETS:-}" ]; then
+              echo "| Tags | \`${TARGETS}\` |"
+            fi
+            echo "| Pushed to main | ${PUSHED:-false} |"
+            echo "| Index URL | <https://pkgs.galtea.ai> |"
+          } >> "$GITHUB_STEP_SUMMARY"
