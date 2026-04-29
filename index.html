@@ -3,82 +3,401 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Galtea CLI — Linux package repository</title>
+  <title>Galtea CLI — Install on Linux</title>
+  <meta name="description" content="apt install galtea / dnf install galtea — the official Galtea CLI, native on every major Linux distro." />
+  <link rel="icon" href="https://galtea.ai/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/ines/termynal@master/termynal.css" />
+  <script src="https://cdn.jsdelivr.net/gh/ines/termynal@master/termynal.js" defer></script>
   <style>
     :root {
-      --bg: #0b0d12;
+      --bg: #08090c;
+      --bg-elev: #11141b;
+      --bg-card: #161922;
       --fg: #e6e8eb;
       --muted: #8b93a1;
       --accent: #7c5cff;
-      --code-bg: #161922;
+      --accent-soft: #a99bff;
+      --accent-glow: rgba(124, 92, 255, 0.18);
       --border: #232733;
+      --code: #d8dde4;
+      --success: #4ade80;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
     body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background: var(--bg);
       color: var(--fg);
       line-height: 1.6;
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse 900px 500px at 50% -100px, var(--accent-glow), transparent 60%),
+        radial-gradient(ellipse 600px 300px at 90% 700px, rgba(124, 92, 255, 0.05), transparent 70%);
     }
-    main {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 64px 24px;
-    }
-    h1 {
-      font-size: 2rem;
-      margin: 0 0 8px;
-      letter-spacing: -0.01em;
-    }
-    h2 {
-      font-size: 1.25rem;
-      margin: 48px 0 16px;
-      letter-spacing: -0.01em;
-    }
-    p.lead {
-      color: var(--muted);
-      font-size: 1.05rem;
-      margin: 0 0 8px;
-    }
+    a { color: var(--accent); text-decoration: none; transition: opacity 0.15s; }
+    a:hover { opacity: 0.85; }
     code, pre {
-      font-family: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", "Roboto Mono", monospace;
-      font-size: 0.92rem;
-    }
-    pre {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px 20px;
-      overflow-x: auto;
-      margin: 0 0 16px;
-    }
-    code { color: var(--accent); }
-    pre code { color: var(--fg); }
-    a { color: var(--accent); }
-    .meta {
-      margin-top: 64px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-      color: var(--muted);
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, "Cascadia Mono", "Roboto Mono", monospace;
       font-size: 0.9rem;
     }
-    .meta a { color: var(--muted); text-decoration: underline; }
+
+    /* Layout */
+    main { max-width: 980px; margin: 0 auto; padding: 64px 24px 80px; }
+    header.hero { text-align: center; padding: 24px 0 56px; }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+      padding: 8px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+    .logo img { height: 24px; width: auto; }
+    .logo span {
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    h1 {
+      font-size: clamp(2.1rem, 5vw, 3rem);
+      letter-spacing: -0.025em;
+      margin-bottom: 14px;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #ffffff 0%, var(--accent-soft) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .lead {
+      color: var(--muted);
+      font-size: 1.1rem;
+      max-width: 580px;
+      margin: 0 auto 24px;
+    }
+    .lead code {
+      background: var(--bg-elev);
+      padding: 2px 8px;
+      border-radius: 6px;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    .perks {
+      display: inline-flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .perks span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .perks svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+
+    /* Termynal animated demo */
+    .demo {
+      max-width: 640px;
+      margin: 0 auto 36px;
+    }
+    [data-termynal] {
+      width: 100%;
+      max-width: 100%;
+      background: var(--bg-card) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 12px;
+      padding: 56px 24px 24px !important;
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, monospace !important;
+      font-size: 0.86rem !important;
+      line-height: 1.5 !important;
+      color: var(--code) !important;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(124, 92, 255, 0.08);
+      text-align: left;
+    }
+    [data-termynal]::before {
+      background-color: #ff5f56;
+      box-shadow: 22px 0 0 #febc2e, 44px 0 0 #28c840 !important;
+      top: 18px !important;
+      left: 20px !important;
+    }
+    [data-termynal]::after {
+      content: "pkgs.galtea.ai" !important;
+      color: var(--muted) !important;
+      top: 16px !important;
+      right: 20px !important;
+      left: auto !important;
+      font-size: 0.78rem;
+      font-family: inherit !important;
+    }
+    [data-ty][data-ty-prompt]::before {
+      color: var(--accent) !important;
+    }
+    [data-ty="input"] {
+      color: var(--fg) !important;
+    }
+
+    /* Cards */
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+      margin-bottom: 56px;
+    }
+    @media (min-width: 768px) {
+      .cards { grid-template-columns: 1fr 1fr; }
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover {
+      border-color: rgba(124, 92, 255, 0.45);
+      transform: translateY(-2px);
+    }
+    .card-header { margin-bottom: 18px; }
+    .distros {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .distro {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 11px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .distro img {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+    .card h2 {
+      font-size: 1.18rem;
+      letter-spacing: -0.015em;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .card .subtitle {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    /* Code blocks */
+    .code-block {
+      position: relative;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .code-block pre {
+      padding: 16px 18px;
+      padding-right: 56px;
+      overflow-x: auto;
+      color: var(--code);
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 500;
+    }
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+    /* Sections */
+    section.box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px;
+      margin-bottom: 24px;
+    }
+    section.box h2 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      letter-spacing: -0.015em;
+    }
+    section.box .lead-small {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 14px;
+    }
+    section.box .lead-small code {
+      background: var(--bg-elev);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+      font-size: 0.85rem;
+    }
+
+    /* Other channels */
+    .channels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 8px;
+      font-size: 0.86rem;
+    }
+    .channel-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color 0.15s;
+    }
+    .channel-row:hover { border-color: rgba(124, 92, 255, 0.3); }
+    .channel-row .name { color: var(--fg); font-weight: 500; }
+    .channel-row code { color: var(--accent); font-size: 0.78rem; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding-top: 36px;
+      margin-top: 40px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer .links { margin-bottom: 8px; }
+    footer .links a { color: var(--muted); margin: 0 10px; }
+    footer .built {
+      font-size: 0.78rem;
+      color: var(--muted);
+      opacity: 0.7;
+    }
+    footer .built .heart { color: #ff6b6b; }
   </style>
 </head>
 <body>
   <main>
-    <h1>Galtea CLI</h1>
-    <p class="lead">Native APT and YUM package repository for the <code>galtea</code> command-line tool.</p>
+    <header class="hero">
+      <div class="logo">
+        <img src="https://galtea.ai/img/galtea_mod.png" alt="Galtea" />
+        <span>CLI · Linux Packages</span>
+      </div>
+      <h1>Install in one line.<br />Update like everything else.</h1>
+      <p class="lead">
+        The official <code>galtea</code> CLI on Debian, Ubuntu, Fedora, RHEL, Rocky, and AlmaLinux —
+        signed, indexed, and served from <code>pkgs.galtea.ai</code>.
+      </p>
 
-    <h2>Debian / Ubuntu</h2>
-    <pre><code>curl -fsSL https://pkgs.galtea.ai/public.key | sudo tee /etc/apt/keyrings/galtea.asc &gt; /dev/null
+      <div class="demo">
+        <div data-termynal data-ty-typeDelay="40" data-ty-lineDelay="700">
+          <span data-ty="input" data-ty-prompt="$">sudo apt install galtea</span>
+          <span data-ty data-ty-delay="400">Reading package lists... Done</span>
+          <span data-ty>Building dependency tree... Done</span>
+          <span data-ty>The following NEW packages will be installed:</span>
+          <span data-ty>&nbsp;&nbsp;galtea</span>
+          <span data-ty="progress"></span>
+          <span data-ty>Setting up galtea (4.21.1) ...</span>
+          <span data-ty>&nbsp;</span>
+          <span data-ty="input" data-ty-prompt="$">galtea login</span>
+          <span data-ty data-ty-delay="200">✓ Logged in as you@galtea.ai</span>
+          <span data-ty="input" data-ty-prompt="$">galtea products list</span>
+          <span data-ty data-ty-delay="200">my-product   prod-2c4a8b   2 versions</span>
+          <span data-ty>another-one  prod-9d1e7f   5 versions</span>
+        </div>
+      </div>
+
+      <div class="perks">
+        <span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          GPG-signed packages
+        </span>
+        <span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Auto-updates with the system
+        </span>
+        <span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          amd64 &amp; arm64
+        </span>
+      </div>
+    </header>
+
+    <div class="cards">
+      <article class="card">
+        <div class="card-header">
+          <div class="distros">
+            <span class="distro">
+              <img src="https://cdn.simpleicons.org/debian/A81D33" alt="" />
+              Debian
+            </span>
+            <span class="distro">
+              <img src="https://cdn.simpleicons.org/ubuntu/E95420" alt="" />
+              Ubuntu
+            </span>
+          </div>
+          <h2>Debian &amp; Ubuntu</h2>
+          <p class="subtitle">Run once, then upgrade with <code>apt</code> like any other package.</p>
+        </div>
+        <div class="code-block">
+          <pre><code id="apt-cmd">curl -fsSL https://pkgs.galtea.ai/public.key | sudo tee /etc/apt/keyrings/galtea.asc &gt; /dev/null
 echo "deb [signed-by=/etc/apt/keyrings/galtea.asc] https://pkgs.galtea.ai/apt stable main" | sudo tee /etc/apt/sources.list.d/galtea.list
 sudo apt update
 sudo apt install galtea</code></pre>
+          <button class="copy-btn" data-target="apt-cmd">Copy</button>
+        </div>
+      </article>
 
-    <h2>Fedora / RHEL / Rocky / AlmaLinux</h2>
-    <pre><code>sudo rpm --import https://pkgs.galtea.ai/public.key
+      <article class="card">
+        <div class="card-header">
+          <div class="distros">
+            <span class="distro">
+              <img src="https://cdn.simpleicons.org/fedora/3C6EB4" alt="" />
+              Fedora
+            </span>
+            <span class="distro">
+              <img src="https://cdn.simpleicons.org/redhat/EE0000" alt="" />
+              RHEL
+            </span>
+            <span class="distro">
+              <img src="https://cdn.simpleicons.org/rockylinux/10B981" alt="" />
+              Rocky
+            </span>
+            <span class="distro">
+              <img src="https://cdn.simpleicons.org/almalinux/0D597F" alt="" />
+              AlmaLinux
+            </span>
+          </div>
+          <h2>Fedora &amp; RHEL family</h2>
+          <p class="subtitle">Same drill on the Red Hat side — <code>dnf</code> takes it from there.</p>
+        </div>
+        <div class="code-block">
+          <pre><code id="dnf-cmd">sudo rpm --import https://pkgs.galtea.ai/public.key
 sudo tee /etc/yum.repos.d/galtea.repo &lt;&lt;'EOF'
 [galtea]
 name=Galtea CLI
@@ -88,14 +407,61 @@ gpgcheck=1
 gpgkey=https://pkgs.galtea.ai/public.key
 EOF
 sudo dnf install galtea</code></pre>
+          <button class="copy-btn" data-target="dnf-cmd">Copy</button>
+        </div>
+      </article>
+    </div>
 
-    <h2>Verify</h2>
-    <pre><code>galtea --version</code></pre>
+    <section class="box">
+      <h2>You're done — here's how to check</h2>
+      <p class="lead-small">If <code>galtea</code> is on your <code>PATH</code> and prints a version, you're good to go.</p>
+      <div class="code-block">
+        <pre><code id="verify-cmd">galtea --version
+galtea login</code></pre>
+        <button class="copy-btn" data-target="verify-cmd">Copy</button>
+      </div>
+    </section>
 
-    <p class="meta">
-      Source: <a href="https://github.com/Galtea-AI/linux-packages">Galtea-AI/linux-packages</a> ·
-      Other install methods: <a href="https://github.com/Galtea-AI/monorepo/tree/main/cli">Homebrew, Scoop, Winget, PyPI, direct download</a>
-    </p>
+    <section class="box">
+      <h2>Prefer another package manager?</h2>
+      <p class="lead-small">The same binary ships through every channel — pick whichever fits your setup.</p>
+      <div class="channels-grid">
+        <div class="channel-row"><span class="name">PyPI</span> <code>pip install galtea-cli</code></div>
+        <div class="channel-row"><span class="name">Homebrew</span> <code>brew install galtea-ai/tap/galtea</code></div>
+        <div class="channel-row"><span class="name">Scoop</span> <code>scoop install galtea</code></div>
+        <div class="channel-row"><span class="name">Winget</span> <code>winget install galtea</code></div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="links">
+        <a href="https://docs.galtea.ai">Docs</a>·
+        <a href="https://github.com/Galtea-AI/monorepo/releases">Release notes</a>·
+        <a href="https://github.com/Galtea-AI/linux-packages">Source</a>·
+        <a href="https://galtea.ai">galtea.ai</a>
+      </div>
+      <div class="built">Made with <span class="heart">♥</span> by the Galtea team</div>
+    </footer>
   </main>
+
+  <script>
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const target = document.getElementById(btn.dataset.target);
+        try {
+          await navigator.clipboard.writeText(target.innerText);
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+          }, 1800);
+        } catch (e) {
+          btn.textContent = 'Failed';
+          setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
+        }
+      });
+    });
+  </script>
 </body>
 </html>
