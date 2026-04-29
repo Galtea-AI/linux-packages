@@ -1,0 +1,48 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: Galtea
+Label: Galtea CLI
+Suite: stable
+Codename: stable
+Date: Wed, 29 Apr 2026 11:09:01 UTC
+Architectures: amd64 arm64
+Components: main
+Description: Galtea CLI APT repository
+MD5Sum:
+ 7014dbe04bbefe43f7ac3de7c5233059 538 main/binary-amd64/Packages
+ c1517534c1033ce4f78c0c081d3d1a5f 387 main/binary-amd64/Packages.gz
+ b53a958f8372ba83c603a9de8e8edfb6 124 main/binary-amd64/Release
+ 312744066f65fbcb465e588c41c79637 508 main/binary-arm64/Packages
+ 3dad6443a695e24fd3ea0f3bb9bd4320 375 main/binary-arm64/Packages.gz
+ 59c943bc4821e20034e3520cd3554709 124 main/binary-arm64/Release
+SHA1:
+ 2a9d2b77c5a3548e69f14fdf64e8bcebcaf4b9b8 538 main/binary-amd64/Packages
+ 6687b39a8cbb4b4bbeb026734e891e1d9e2669b7 387 main/binary-amd64/Packages.gz
+ ff82520359e94aeca3f8409578c5d3864bc99cd3 124 main/binary-amd64/Release
+ 0a9951be0129a725f3aaea99cdca48ea5422c658 508 main/binary-arm64/Packages
+ f29860492bbbc2138eb48618a95cb4bc058fb1f3 375 main/binary-arm64/Packages.gz
+ 054ac152a94a3b3a15902751e5e18ec7e6ba63c2 124 main/binary-arm64/Release
+SHA256:
+ 7bf8b25d07e6f57db44715dea77b4f56ce8bcefcaa26ca53e7ba118fcd0043d5 538 main/binary-amd64/Packages
+ 4ac35fb2bb32a618783020be6586e3219c7f16fcd5d80a85e03e603dd761cd1e 387 main/binary-amd64/Packages.gz
+ 3b8b5c0bd51cf4d03abdfbc42e15ff58e9f65d2e27572242b6ba2c3914139ff6 124 main/binary-amd64/Release
+ 29ed7f21d36bf9d43852bff7b3cbe655cf2f454b11a3a549e33c0f98125bbcb3 508 main/binary-arm64/Packages
+ 6d5097bb5d46e158c7d83156285d7bf4ef3c9802458de22b1bc9198e69cae28e 375 main/binary-arm64/Packages.gz
+ da29877e60bb751e46bfc4646db797217789e9f7d9dd7331bada93b69c47cbe7 124 main/binary-arm64/Release
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEglatfIb/qYggY/Tf0UyZVmG3W/MFAmnx5s0ACgkQ0UyZVmG3
+W/PSLBAAhiH0xhfp2MCW3YKSzeUHUdqz50lqZXTtrQameB7mnwAcSjY5Eshac5De
+RtRIeoniAZIxNWJ3TLXca4zg8zP/+lgnYO0tqep7IwVpTQaqDNT25oQr4NFqCA/P
+fo/O13+xhOc4GoWXCCSGsE4YBBL1+erET54z3gi1d3fwMyUPkYT4RoiIK+9M1qr8
+06CEcUODzsPZGmqhwEHyZpo5/tytT6/0MwuhUvCpF+liKHFN6stJthbzY2r4flCC
+7oSK3dgFZ4KhSA/3vsNP7Rfqxo79mIAafdNdOQ+uBSngDUdFIke9SZmHNIwLV1AJ
+KsecIkVK0TPUVySUVh1FDjK3ZCT/CQhuyI+J6LNv8w1CEnTKjRpyeyzBCkmu7CBr
+Qscx09RCQqq9PhJOPzEu82lE8aot8OHQKFFyrE22yaf70UrdA1ISn+9+seQvi2WU
+OdIvkNfcHDHPngzvNR0trx34RHPvRvDy/uhnkQ88wZMJ8hSGP7TvfwWS+bkLDyV0
+/NQ/kIfK04JBsXjrjvdBf1lOAiwSSPv5hHjEEDSfpG7a06L4B0yfpW9rW5V6nM4I
+v8TPu5dpbsLO5kAJa6akLvQ7Rce4V+VG+1Ei8joNl27X9kuJko4gbA+kVU8+/3Q6
+bBQZSDsJipjla5ICuMLhrGO13cCOUVOPxyDxJ6Y2nK5a87195yk=
+=Jilf
+-----END PGP SIGNATURE-----
