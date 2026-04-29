@@ -142,9 +142,13 @@ jobs:
             EMOJI="➕"
             REASON="incremental sync — adding only releases missing from the index"
             TARGETS=""
+            # Source of truth = .ingested-tags (manifest committed to repo).
+            # We previously inferred filenames from the tag name, but goreleaser's
+            # snapshot builds bake a "next" version into the artifact name that
+            # bears no relation to the tag, so the filename glob never matched
+            # and incremental runs re-ingested every release on every run.
             for tag in $ALL_RELEASES; do
-              version_no_v="${tag#v}"
-              if ! ls "apt/pool/main/g/galtea/galtea_${version_no_v}_"*.deb >/dev/null 2>&1; then
+              if ! grep -qxF "$tag" .ingested-tags 2>/dev/null; then
                 TARGETS="$TARGETS $tag"
               fi
             done
@@ -183,6 +187,7 @@ jobs:
           rm -rf apt/db apt/dists apt/pool
           rm -rf yum/repodata
           find yum -maxdepth 1 -type f -name '*.rpm' -delete
+          rm -f .ingested-tags
           echo "  • After:  index wiped — every artifact will be re-ingested"
           echo "::endgroup::"
 
@@ -262,6 +267,24 @@ jobs:
           gpg --batch --yes --detach-sign --armor yum/repodata/repomd.xml
           echo "  ✔  YUM metadata regenerated and signed"
           ls -la yum/repodata/ | sed 's/^/      /'
+          echo "::endgroup::"
+
+      - name: 📝 Update ingested-tags manifest
+        if: steps.targets.outputs.targets != ''
+        env:
+          TARGETS: ${{ steps.targets.outputs.targets }}
+        run: |
+          set -euo pipefail
+          # Append the tags we just ingested to .ingested-tags. Sorted &
+          # de-duplicated so the file remains a stable source of truth
+          # for the next incremental run.
+          touch .ingested-tags
+          for tag in $TARGETS; do
+            echo "$tag"
+          done >> .ingested-tags
+          sort -uV -o .ingested-tags .ingested-tags
+          echo "::group::📝 .ingested-tags now contains"
+          sed 's/^/      /' .ingested-tags
           echo "::endgroup::"
 
       - name: 🚀 Commit and push
