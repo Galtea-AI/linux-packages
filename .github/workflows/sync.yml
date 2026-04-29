@@ -94,8 +94,12 @@ jobs:
           # .deb files are named galtea_VERSION_ARCH.deb (underscore, Debian convention)
           # .rpm files are named galtea-VERSION-RELEASE.ARCH.rpm (dash, RPM convention).
           # Match both with `galtea[-_]`.
-          ALL_RELEASES=$(gh release list -R "$MONOREPO" --limit 200 --json tagName,assets \
-            | jq -r '.[] | select(.assets[]?.name | test("^galtea[-_].*\\.(deb|rpm)$")) | .tagName' \
+          #
+          # Use the raw releases API (`gh api`) instead of `gh release list --json`
+          # — the latter doesn't expose the `assets` field in its JSON projection,
+          # so we'd be unable to filter by asset name.
+          ALL_RELEASES=$(gh api "repos/$MONOREPO/releases?per_page=100" --paginate \
+            | jq -r '[.[] | select(.assets[]?.name | test("^galtea[-_].*\\.(deb|rpm)$")) | .tag_name] | unique | .[]' \
             | sort -V \
             || true)
           ALL_COUNT=$(echo "$ALL_RELEASES" | grep -c . || true)
