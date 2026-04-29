@@ -1,0 +1,17 @@
+Package: galtea
+Version: 0.0.0~test-pkgs
+Architecture: amd64
+Architecture-Variant: amd64v1
+Maintainer: Galtea AI <info@galtea.ai>
+Installed-Size: 30848
+Homepage: https://galtea.ai
+Priority: optional
+Section: 
+Filename: pool/main/g/galtea/galtea_0.0.0~test-pkgs_amd64.deb
+Size: 9656014
+SHA256: fd1708b220fb3858c01707b1b07b0d4b9dbd60066fd0ba98ac4da6d698f3e002
+SHA1: f9f35991785452de1ebc7038eea693a9258ac6a7
+MD5sum: b219280d12628794e3587f75866c9726
+Description: Galtea CLI - terminal-native client for the Galtea AI testing &
+ evaluation platform.
+
