@@ -90,8 +90,12 @@ jobs:
           set -euo pipefail
 
           echo "::group::📡 Listing CLI releases on $MONOREPO"
+          # Note: GoReleaser's nfpms uses different separator conventions per format —
+          # .deb files are named galtea_VERSION_ARCH.deb (underscore, Debian convention)
+          # .rpm files are named galtea-VERSION-RELEASE.ARCH.rpm (dash, RPM convention).
+          # Match both with `galtea[-_]`.
           ALL_RELEASES=$(gh release list -R "$MONOREPO" --limit 200 --json tagName,assets \
-            | jq -r '.[] | select(.assets[]?.name | test("^galtea_.*\\.(deb|rpm)$")) | .tagName' \
+            | jq -r '.[] | select(.assets[]?.name | test("^galtea[-_].*\\.(deb|rpm)$")) | .tagName' \
             | sort -V \
             || true)
           ALL_COUNT=$(echo "$ALL_RELEASES" | grep -c . || true)
@@ -178,7 +182,7 @@ jobs:
             echo "  ⬇️  Downloading assets from $MONOREPO@$tag …"
             gh release download "$tag" -R "$MONOREPO" \
               --pattern 'galtea_*.deb' \
-              --pattern 'galtea_*.rpm' \
+              --pattern 'galtea-*.rpm' \
               --dir "staging/$tag" \
               --clobber
             DEB_COUNT=$(find "staging/$tag" -maxdepth 1 -name '*.deb' | wc -l | tr -d ' ')
