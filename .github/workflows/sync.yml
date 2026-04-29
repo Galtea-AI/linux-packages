@@ -41,6 +41,12 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
+          # PAT owned by a Repository admin so the subsequent `git push`
+          # bypasses the org-inherited ruleset that blocks direct pushes
+          # to main. The default GITHUB_TOKEN can't bypass rulesets —
+          # it's a service principal, not a user. The admin role must
+          # be in the ruleset's bypass list.
+          token: ${{ secrets.GALTEA_AI_RELEASES_PAT }}
 
       - name: 🛎️  Trigger context
         env:
