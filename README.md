@@ -1,8 +1,6 @@
-# Galtea CLI — Linux package repository
+# Galtea CLI — Linux packages
 
-This repository hosts the **APT** and **YUM/DNF** package indexes for the [Galtea CLI](https://github.com/Galtea-AI/monorepo/tree/main/cli), served as static files via GitHub Pages at <https://pkgs.galtea.ai>.
-
-The indexes are populated automatically by the [`sync.yml`](.github/workflows/sync.yml) workflow, which reads CLI releases from `Galtea-AI/monorepo` and ingests their `.deb` / `.rpm` artifacts.
+Native APT and YUM/DNF package repositories for the [Galtea CLI](https://galtea.ai), served at <https://pkgs.galtea.ai>.
 
 ## Install
 
@@ -30,51 +28,38 @@ EOF
 sudo dnf install galtea
 ```
 
-## Layout
+## Use
 
-```
-.
-├── apt/                    # reprepro-managed APT index
-│   ├── conf/
-│   │   ├── distributions   # codename + arches + signing config
-│   │   └── options         # reprepro behaviour flags
-│   ├── db/                 # reprepro internal state (gitignored locally; committed in CI)
-│   ├── dists/              # generated metadata (Release, Packages.gz, signed)
-│   └── pool/               # the actual .deb files
-├── yum/                    # createrepo_c-managed YUM index
-│   ├── repodata/           # generated metadata (repomd.xml + signature)
-│   └── *.rpm               # the actual .rpm files
-├── public.key              # GPG public key used to sign the indexes
-├── index.html              # human-friendly landing page (served by GitHub Pages)
-├── CNAME                   # pkgs.galtea.ai
-└── .github/workflows/sync.yml
+```bash
+galtea --version
+galtea login
+galtea --help
 ```
 
-## Sync workflow
+Full command reference and tutorials at <https://docs.galtea.ai>.
 
-`sync.yml` triggers:
+## Update
 
-| Trigger | Use case | Latency |
-|---|---|---|
-| `repository_dispatch: [new-release]` | Monorepo notifies after a CLI release publishes | ~1 min |
-| `workflow_dispatch` (manual) | Full sync, single-release reindex, disaster recovery | On demand |
-| `schedule` (daily) | Drift catcher — fills any gaps detected against the monorepo's release list | ≤24 h |
+The package manager handles upgrades automatically:
 
-`workflow_dispatch` inputs:
-- **`force`** (bool, default `false`) — wipes the index and rebuilds from every CLI release on the monorepo.
-- **`version`** (string, optional) — reindexes a single release tag (e.g. `v0.5.2`).
-- Both empty → incremental mode (only missing releases are added).
+```bash
+sudo apt update && sudo apt upgrade galtea     # Debian / Ubuntu
+sudo dnf upgrade galtea                         # Fedora / RHEL
+```
 
-A concurrency group prevents overlapping runs from racing on `git push`.
+## Uninstall
 
-## Secrets
+```bash
+sudo apt remove galtea                          # Debian / Ubuntu
+sudo dnf remove galtea                          # Fedora / RHEL
+```
 
-| Secret | Scope |
-|---|---|
-| `GPG_PRIVATE_KEY` | Release-signing keypair (private, ASCII-armored) |
-| `GPG_PASSPHRASE` | Passphrase for the above |
-| `MONOREPO_READ_TOKEN` | Fine-grained PAT — `contents: read` on `Galtea-AI/monorepo` |
+## Other install channels
 
-## Bootstrap
-
-See [`cli/BOOTSTRAP.md`](https://github.com/Galtea-AI/monorepo/blob/main/cli/BOOTSTRAP.md) in the monorepo for one-time setup steps (GPG key generation, secret configuration, Pages, CNAME).
+| Channel | Install gesture |
+|---------|-----------------|
+| PyPI | `pip install galtea-cli` |
+| Homebrew | `brew install galtea-ai/tap/galtea` |
+| Scoop | `scoop bucket add galtea https://github.com/Galtea-AI/scoop-bucket && scoop install galtea` |
+| Winget | `winget install galtea` |
+| Direct download | [GitHub Releases](https://github.com/Galtea-AI/monorepo/releases) |
