@@ -1,0 +1,9 @@
+# Local staging area for downloaded release assets (never committed)
+staging/
+
+# reprepro lock files
+apt/db/lockfile
+
+# OS / editor noise
+.DS_Store
+*.swp

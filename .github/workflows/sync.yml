@@ -1,0 +1,155 @@
+name: Sync APT/YUM repository
+
+on:
+  # Low-latency trigger fired by the monorepo after a CLI release publishes.
+  repository_dispatch:
+    types: [new-release]
+
+  # Manual trigger with optional flags for full sync and single-release reindex.
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Wipe and rebuild the entire index from scratch'
+        type: boolean
+        default: false
+      version:
+        description: 'Reindex a single release tag (e.g. v0.5.2). Leave blank for incremental sync.'
+        type: string
+        required: false
+
+  # Drift catcher — fills any gaps if a previous run failed silently.
+  schedule:
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linux-packages-sync
+  cancel-in-progress: false
+
+env:
+  MONOREPO: Galtea-AI/monorepo
+  APT_DISTRIBUTION: stable
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install indexing tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends reprepro createrepo-c gnupg
+
+      - name: Import GPG signing key
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec  # v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          trust_level: 5
+
+      - name: Determine target releases
+        id: targets
+        env:
+          GH_TOKEN: ${{ secrets.MONOREPO_READ_TOKEN }}
+          FORCE: ${{ github.event.inputs.force || 'false' }}
+          VERSION: ${{ github.event.inputs.version || '' }}
+        run: |
+          set -euo pipefail
+
+          # All monorepo releases whose assets contain galtea_*.deb / galtea_*.rpm.
+          ALL_RELEASES=$(gh release list -R "$MONOREPO" --limit 200 --json tagName,assets \
+            | jq -r '.[] | select(.assets[]?.name | test("^galtea_.*\\.(deb|rpm)$")) | .tagName' \
+            | sort -V \
+            || true)
+
+          if [ "$FORCE" = "true" ]; then
+            MODE="force"
+            TARGETS="$ALL_RELEASES"
+          elif [ -n "$VERSION" ]; then
+            MODE="version"
+            TARGETS="$VERSION"
+          else
+            MODE="incremental"
+            TARGETS=""
+            for tag in $ALL_RELEASES; do
+              version_no_v="${tag#v}"
+              if ! ls "apt/pool/main/g/galtea/galtea_${version_no_v}_"*.deb >/dev/null 2>&1; then
+                TARGETS="$TARGETS $tag"
+              fi
+            done
+          fi
+
+          # Trim leading/trailing whitespace.
+          TARGETS=$(echo "$TARGETS" | xargs || true)
+
+          {
+            echo "mode=$MODE"
+            echo "targets=$TARGETS"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Mode:    $MODE"
+          echo "Targets: ${TARGETS:-<none>}"
+
+      - name: Force mode — wipe existing index
+        if: steps.targets.outputs.mode == 'force'
+        run: |
+          rm -rf apt/db apt/dists apt/pool
+          rm -rf yum/repodata
+          find yum -maxdepth 1 -type f -name '*.rpm' -delete
+
+      - name: Download and ingest target releases
+        if: steps.targets.outputs.targets != ''
+        env:
+          GH_TOKEN: ${{ secrets.MONOREPO_READ_TOKEN }}
+          TARGETS: ${{ steps.targets.outputs.targets }}
+        run: |
+          set -euo pipefail
+          mkdir -p staging
+
+          for tag in $TARGETS; do
+            echo "::group::Processing $tag"
+            mkdir -p "staging/$tag"
+            gh release download "$tag" -R "$MONOREPO" \
+              --pattern 'galtea_*.deb' \
+              --pattern 'galtea_*.rpm' \
+              --dir "staging/$tag" \
+              --clobber
+
+            for deb in staging/"$tag"/*.deb; do
+              [ -e "$deb" ] || continue
+              reprepro -b apt --waitforlock 30 includedeb "$APT_DISTRIBUTION" "$deb"
+            done
+
+            for rpm in staging/"$tag"/*.rpm; do
+              [ -e "$rpm" ] || continue
+              cp -f "$rpm" yum/
+            done
+            echo "::endgroup::"
+          done
+
+      - name: Regenerate YUM metadata and sign
+        if: steps.targets.outputs.targets != ''
+        run: |
+          set -euo pipefail
+          createrepo_c --update yum/
+          rm -f yum/repodata/repomd.xml.asc
+          gpg --batch --yes --detach-sign --armor yum/repodata/repomd.xml
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name 'galtea-release-bot'
+          git config user.email 'noreply@galtea.ai'
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          MSG="sync(${{ steps.targets.outputs.mode }}): ${{ steps.targets.outputs.targets }}"
+          git commit -m "$MSG"
+          git push
