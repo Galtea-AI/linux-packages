@@ -2,28 +2,28 @@ Origin: Galtea
 Label: Galtea CLI
 Suite: stable
 Codename: stable
-Date: Wed, 29 Apr 2026 15:45:02 UTC
+Date: Mon, 04 May 2026 12:21:52 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Galtea CLI APT repository
 MD5Sum:
- 783bbf18e62b740a04bddf024b6763ea 546 main/binary-amd64/Packages
- d2640a9fdacde84880572ef1dd83965b 390 main/binary-amd64/Packages.gz
+ 4a3d06ff2005a2f3dc4c7d2666049203 528 main/binary-amd64/Packages
+ b95b7b5865a29a0e9591e1be4f6a04b3 380 main/binary-amd64/Packages.gz
  b53a958f8372ba83c603a9de8e8edfb6 124 main/binary-amd64/Release
- 2b293f9476fb157e196adebe325b2195 516 main/binary-arm64/Packages
- a2d5a2e56681f7794b3c7d4589cdd9a5 375 main/binary-arm64/Packages.gz
+ c9da5fc98c4f351a30f78a5661433048 498 main/binary-arm64/Packages
+ b1c68a48f98d5caf4ffe01d2689fa9f7 366 main/binary-arm64/Packages.gz
  59c943bc4821e20034e3520cd3554709 124 main/binary-arm64/Release
 SHA1:
- 3b1a9c09e5ed50d79c030c00e1dc7585bb468e22 546 main/binary-amd64/Packages
- 4fc94d6fab12c1b0fdfe30e24d406f85ac7527d0 390 main/binary-amd64/Packages.gz
+ aadd9e90fea450cc6cb9c0965e05d5e5d79adbdc 528 main/binary-amd64/Packages
+ 93d1ed31983b3f5c515b627279ad8a3019b331e2 380 main/binary-amd64/Packages.gz
  ff82520359e94aeca3f8409578c5d3864bc99cd3 124 main/binary-amd64/Release
- 5217ca5d02c6f53afcab8001dcf45c3cd9bc2cca 516 main/binary-arm64/Packages
- ce132a03eaa05de20e9acfe7077497e1e7e7a589 375 main/binary-arm64/Packages.gz
+ 7bd2efb89cd42e7cf798647e2dcc664eeb8a5e56 498 main/binary-arm64/Packages
+ eb6339c95945109224ebee3f6bdd70bb104acd28 366 main/binary-arm64/Packages.gz
  054ac152a94a3b3a15902751e5e18ec7e6ba63c2 124 main/binary-arm64/Release
 SHA256:
- 9d1639e4d2bd6f3e9e4c4765d76b03f8653e8fef2f8996539db4070fa485674d 546 main/binary-amd64/Packages
- e32089a09f9c4f415f2cbce877c61ec11bef77a4812d9805e5be3e933c916076 390 main/binary-amd64/Packages.gz
+ 429ef9e95047cda4e733737b29c703a7781b1cdb74f6b48943e1ebe1f040992f 528 main/binary-amd64/Packages
+ e54b48aae0ee965664b7a5bbd627e95f5993c9eb08cf43b6fb5655a6fd29767c 380 main/binary-amd64/Packages.gz
  3b8b5c0bd51cf4d03abdfbc42e15ff58e9f65d2e27572242b6ba2c3914139ff6 124 main/binary-amd64/Release
- 4dd92ef92d1c89935c698368bb6f47e4a347949e0c1cf22993a999f9c00850d1 516 main/binary-arm64/Packages
- a442a67e527cd23b7600ab44612ab1ead0c7e030753a1ef842696a746e9ad166 375 main/binary-arm64/Packages.gz
+ 0e163965870cb57be99beee355ffd99b07c0b5c5348a1cfba3a7f46517b2bbf1 498 main/binary-arm64/Packages
+ f37fac362a26fbc8b6c682b8eb80112c00757f1b50d083a1202ee10eeb37e602 366 main/binary-arm64/Packages.gz
  da29877e60bb751e46bfc4646db797217789e9f7d9dd7331bada93b69c47cbe7 124 main/binary-arm64/Release
