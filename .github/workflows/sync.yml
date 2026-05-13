@@ -41,6 +41,12 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
+          # PAT (org-level secret) belonging to an org/repo admin — the org
+          # ruleset `prevent-push-on-main-copilot` bypasses Organization
+          # admin / Repository admin roles, so this is the actor that can
+          # `git push` to main from CI. The default GITHUB_TOKEN authenticates
+          # as github-actions[bot] which is not in any bypass list.
+          token: ${{ secrets.GALTEA_AI_RELEASES_PAT }}
 
       - name: 🛎️  Trigger context
         env:
