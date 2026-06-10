@@ -1,5 +1,5 @@
 Package: galtea
-Version: 4.27.0
+Version: 4.30.0
 Architecture: amd64
 Architecture-Variant: amd64v1
 Maintainer: Galtea AI <info@galtea.ai>
@@ -7,11 +7,11 @@ Installed-Size: 30852
 Homepage: https://galtea.ai
 Priority: optional
 Section: 
-Filename: pool/main/g/galtea/galtea_4.27.0_amd64.deb
-Size: 9673522
-SHA256: c872b2eea60230f15638be5b0ffa9987be45bf8aeab6ff11ab561d4cb656107c
-SHA1: ad7622f3d3a1860bda1f790645793af67fa58926
-MD5sum: ee4669c6ecfba538b3251842bea6b6ed
+Filename: pool/main/g/galtea/galtea_4.30.0_amd64.deb
+Size: 9673504
+SHA256: ae18ad5b5f67072ad8eefc88b59daa423d94e8b38ea5e4d99b698c8437590078
+SHA1: 269a8f56664b480b387fdd17b22ad561f06ee894
+MD5sum: 06ebd0f399a963ecd0570d9563a132d1
 Description: Galtea CLI - terminal-native client for the Galtea AI testing &
  evaluation platform.
 
