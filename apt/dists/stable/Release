@@ -2,28 +2,28 @@ Origin: Galtea
 Label: Galtea CLI
 Suite: stable
 Codename: stable
-Date: Mon, 22 Jun 2026 08:21:37 UTC
+Date: Mon, 29 Jun 2026 09:59:10 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Galtea CLI APT repository
 MD5Sum:
- 472552fd3443ce3998f96031ffd00564 528 main/binary-amd64/Packages
- 19da6962a8c6d57def077bda3b1ca69f 378 main/binary-amd64/Packages.gz
+ 5858726d21ae9193d5b9128f8ae7fa2a 528 main/binary-amd64/Packages
+ df8c401850f6a077f2b94fff861688e0 379 main/binary-amd64/Packages.gz
  b53a958f8372ba83c603a9de8e8edfb6 124 main/binary-amd64/Release
- 80cb95106f6b832bfa8ebdaf5632d0e5 498 main/binary-arm64/Packages
- fb838c8f675dd06ace146bbc679e10ef 367 main/binary-arm64/Packages.gz
+ 118e06e73c52179f8d819df08bb686ee 498 main/binary-arm64/Packages
+ 7b455b05291afae97d44ddd9f3aa6bd8 370 main/binary-arm64/Packages.gz
  59c943bc4821e20034e3520cd3554709 124 main/binary-arm64/Release
 SHA1:
- c2fcd7a2957371528018d46f23eb4c409f8e2143 528 main/binary-amd64/Packages
- 9bfb909b86514ef30a1971a715ffc6316a12fbd0 378 main/binary-amd64/Packages.gz
+ d68f06e2ddeef2cc07843ed3977d1b920056f5e1 528 main/binary-amd64/Packages
+ 8b2ce7dee90a99041429dffbec52725b3a5469db 379 main/binary-amd64/Packages.gz
  ff82520359e94aeca3f8409578c5d3864bc99cd3 124 main/binary-amd64/Release
- 630d9ee299bd36b57e73e6bd35afdf6c066980e4 498 main/binary-arm64/Packages
- 72454c73814020b02c7230cd51f88d42b7bbc699 367 main/binary-arm64/Packages.gz
+ 1c8d5e4b82b27ec7fe11a7bafa790b03c9afcf21 498 main/binary-arm64/Packages
+ c48bf86f7c4544d1a2c5d76811fde1c8b23c5a99 370 main/binary-arm64/Packages.gz
  054ac152a94a3b3a15902751e5e18ec7e6ba63c2 124 main/binary-arm64/Release
 SHA256:
- fee6eb38192f1cce3258c5ae123a9f341d683b72980a346ef4cc80418787a873 528 main/binary-amd64/Packages
- 770b93f5967a74cd6a951cc6e86d1dab353b5bd1d23550359ce66c2d41238bfa 378 main/binary-amd64/Packages.gz
+ ad9bacb9736e3b2145df6dbba0e2ffdf29ab6dabc2485eda55a7de8a1194fc95 528 main/binary-amd64/Packages
+ d5ca0a7263c6bf6eca0cd396c707954dfdd7b687eb2e25c636b272fcbabdef6b 379 main/binary-amd64/Packages.gz
  3b8b5c0bd51cf4d03abdfbc42e15ff58e9f65d2e27572242b6ba2c3914139ff6 124 main/binary-amd64/Release
- f0445d80500202e5d4bf90d6d49012f2abbb567d1e82fe19863e6cdaf02d5d10 498 main/binary-arm64/Packages
- c6e131ea94ade6db1e447ff8eaec2aad14940d3e6bfe74011b3b14788a044004 367 main/binary-arm64/Packages.gz
+ 9391a62acb078977de4d5bf9cd4fd15db2eb8454d5cfad70822a119df208f4f2 498 main/binary-arm64/Packages
+ c214193e326fc97025b18af923823878c88c0abcd1dfb453ac79459b3f472524 370 main/binary-arm64/Packages.gz
  da29877e60bb751e46bfc4646db797217789e9f7d9dd7331bada93b69c47cbe7 124 main/binary-arm64/Release
