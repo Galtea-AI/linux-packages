@@ -5,44 +5,44 @@ Origin: Galtea
 Label: Galtea CLI
 Suite: stable
 Codename: stable
-Date: Mon, 06 Jul 2026 08:58:39 UTC
+Date: Mon, 13 Jul 2026 07:45:42 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Galtea CLI APT repository
 MD5Sum:
- 4e7229c25a625203c7a5a58a6c2f3b01 528 main/binary-amd64/Packages
- 17d0312413f444ea2c8e798aeb627a38 382 main/binary-amd64/Packages.gz
+ 189f8592806478f595d997675abf33b9 528 main/binary-amd64/Packages
+ f01c33746e5b55e1af6963784cc0f38b 381 main/binary-amd64/Packages.gz
  b53a958f8372ba83c603a9de8e8edfb6 124 main/binary-amd64/Release
- f11e9fe270b39364f8ad892457d20585 498 main/binary-arm64/Packages
- 2d23b003a01b54de3cfafd473c975fc3 366 main/binary-arm64/Packages.gz
+ 4dbbf193348691a2220a461613d6b38a 498 main/binary-arm64/Packages
+ 56c4c253c31ddf64c97efab75ab225b3 369 main/binary-arm64/Packages.gz
  59c943bc4821e20034e3520cd3554709 124 main/binary-arm64/Release
 SHA1:
- bb445f59f20e455b59ef7febe9fee8f0ce8adb61 528 main/binary-amd64/Packages
- 18ae8e41ee1b709c1f079a8d68c4db74faf2cee2 382 main/binary-amd64/Packages.gz
+ bad3c4abd17024e5809aa5e36b157a41e4d941fb 528 main/binary-amd64/Packages
+ 8d8bbb86c781cbae1aa2a4786da8d5b03cd6df96 381 main/binary-amd64/Packages.gz
  ff82520359e94aeca3f8409578c5d3864bc99cd3 124 main/binary-amd64/Release
- 63c7b54034fa28d1cd8a21d1c6312bea5db1f8a0 498 main/binary-arm64/Packages
- c760a1614d9cac137594235abb297707093d3a24 366 main/binary-arm64/Packages.gz
+ 3e962a9c71191703fc6689a06c081468aa64f5c9 498 main/binary-arm64/Packages
+ e470d4a8b817e45ad297976fa26b93bba280cdf9 369 main/binary-arm64/Packages.gz
  054ac152a94a3b3a15902751e5e18ec7e6ba63c2 124 main/binary-arm64/Release
 SHA256:
- 0584f7b5546a8384747c0eb9dd261874692a0f3a5876f0e17e3e3462582f0bd1 528 main/binary-amd64/Packages
- 936128ea80355eec1f86120abebb2ca9e9dd8c80fc399e26ee953d3c4b0b9d08 382 main/binary-amd64/Packages.gz
+ ae08f117ccb592bfd3c75d8c45277c4f985d6872bb7f3c5e5ef5829c11bd8c17 528 main/binary-amd64/Packages
+ 9d93ad21171869b2ba4d13b53bbb1379cd1d1a4fc40c4f9eb89694474e30e0f1 381 main/binary-amd64/Packages.gz
  3b8b5c0bd51cf4d03abdfbc42e15ff58e9f65d2e27572242b6ba2c3914139ff6 124 main/binary-amd64/Release
- 5038f5ff1995df276a28091e8bd53439bc544eeae8c06ee56cdb39871caf7d3d 498 main/binary-arm64/Packages
- e5eb3452a8c54f327aa5dc227601ea0ece509e2df7c1d91f50eef5f03e3c1945 366 main/binary-arm64/Packages.gz
+ dcb4f55fad6e94344e73ed8319a4d1b90a350cfdee0c908b20c436a32d97716d 498 main/binary-arm64/Packages
+ 03c1f8c02afb32fd390f3c22d1685a4c665052f70c743227a128287ca167b110 369 main/binary-arm64/Packages.gz
  da29877e60bb751e46bfc4646db797217789e9f7d9dd7331bada93b69c47cbe7 124 main/binary-arm64/Release
 -----BEGIN PGP SIGNATURE-----
 
-iQIzBAEBCgAdFiEEglatfIb/qYggY/Tf0UyZVmG3W/MFAmpLbj8ACgkQ0UyZVmG3
-W/N+DA/8CVfh84R2VhisbH+8DgJ5sAabQbV+/OEIBXk1MyzYT2d36yV1XFIsJqJJ
-8PN08tDl4+pcu9R1C7tuApllPvDuyB2PEiE7jgiwU38rXS6Ti7EJOXl0UfkbgGHb
-77FZM+rGtkU7fXqOC595IM/AyzcOxShRCaH5+Zk+GB39wb6XpTIqmMdOLQTKrKhp
-kAk10qcjI9U67uiK+V+bpcEcii+i2PX2s3zJ28qaJWPJxMlOvb0bwBEyEvtPEJ2G
-NQ/6+rxm4wMdqhmNYnYm97tI7BjlTwJeup19BnpvUL5po1Kju84SgERnhWgqu6LE
-V6WT2TPu9kNd1Ofeuhqnq6u2grIWtKjYZTb4Q0+nMrkdFczkIONKgyOBqyOXczkE
-Bu5mI2IZp/2ta2niw39eXkvZkTNvCcip410YDOoFRn+vwIY7saEMmtgcOHoJd4nq
-6OMHR5s2W5+WbUt4Yz+vQXyONqhIvKxwt4hLWMZQDetjtCJ6CPwuY/a3iy4Y+djp
-QtyTJJzbor3ap3CiE7H1guMjUuV9r9sDpNs6csq7gIu6wfeHvsrRsf0vmKe2W+Du
-JeALqyDAF0Crsquo8fOQOAGkHw1XAHyemBmq+cXdoBiLXalc+Eq32WEE1OQP6Jhv
-+5Ei4Odkd5yusJwa+uxDffLuuFIfL6zaSVlmT/dl7VsFJxfRZbg=
-=rI3g
+iQIzBAEBCgAdFiEEglatfIb/qYggY/Tf0UyZVmG3W/MFAmpUl6YACgkQ0UyZVmG3
+W/O6Ug//T22Z0IWpntE4B7XfnyF9uNePbiETy5LkgITn3K+H3sbtfcWUMtuLHtel
+frmzaxO3GsceVizIyHKjVPjOPPStKX921vMeyWs2D1YLXnegNZCK8HFuGrKOYkch
+Jh6UqQtjttOtyxNUR3CiThVvubpTC4gqO/AAzByyXWaIQ0Rlwk7LDQ8P6YEfyJCq
+Om2AdHt0vL6m4+kqN+5UGFyZtE0XEtsf2HEUdczILOOrmgcskYDd/pbiQ4gnTNuK
+7gIaEioHNQWkfjdorXuWfPKJJQsGYyKTziTpIUU/Lgg//fh6QZMVve13+ZHYoeey
+2c0jxtkpFve3N46QPj4zSV8fWLDWhPvoiRgF+mOusLT1IVjfxzdORIxjEPyXKJ2Y
+8gMJT6U3Q/+pTi1xlXhtUWYc9IRIoidhW4oaQLg9G65RZHM21WDyS2mC4HP0BucV
+7SEsT9pBA3i7h449nzmJbcBG3+HyDOWfK5mjTJ9U0gS9rHt7dhDiozMBww9IFmLI
+/iENKD73647NzsvKUBwV/o9HDGUglLwi58IwVHkbHgEdW0E9U2UVNyngvavLiUiB
+28Fpv2dbQriSYi3NwlEo1xO+GaNH3uwQy6j2JLh+hz6HW6r4TzffHIBxkyhTU4Km
+r5CDaO7vmGyYy3E8o1/r1iAPNnDjdsfyvHirGhfq8gQzwuWHD48=
+=QbdJ
 -----END PGP SIGNATURE-----
