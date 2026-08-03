@@ -1,16 +1,16 @@
 Package: galtea
-Version: 4.38.0
+Version: 4.40.0
 Architecture: arm64
 Maintainer: Galtea AI <info@galtea.ai>
 Installed-Size: 28672
 Homepage: https://galtea.ai
 Priority: optional
 Section: 
-Filename: pool/main/g/galtea/galtea_4.38.0_arm64.deb
-Size: 8677992
-SHA256: a492d1eb9dda6392f195caf3f895e5ceee6242ebc0e7b8e0421ee1aa4e3a2246
-SHA1: 1d30b6ab78c18be42c2e92f644b397a8cf9035a3
-MD5sum: 47ed19ebe174a94ffc1ace724e874535
+Filename: pool/main/g/galtea/galtea_4.40.0_arm64.deb
+Size: 8677974
+SHA256: 95c9656edbfc93d7d1f9c81f97df5c6183fd25d610011b0df2f8b78f4d4a916c
+SHA1: d1454178f22b123c2be420bce19cfd06d419458e
+MD5sum: 4604b308756b878cc0cd0de5656da03e
 Description: Galtea CLI - terminal-native client for the Galtea AI testing &
  evaluation platform.
 
