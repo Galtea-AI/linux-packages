@@ -2,28 +2,28 @@ Origin: Galtea
 Label: Galtea CLI
 Suite: stable
 Codename: stable
-Date: Tue, 13 Oct 2026 08:44:33 UTC
+Date: Mon, 19 Oct 2026 07:44:39 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Galtea CLI APT repository
 MD5Sum:
- 94a06041b01810c9affb8aa3118127a0 496 main/binary-amd64/Packages
- 6a095a29e6ce64543fefeb55efa34dca 369 main/binary-amd64/Packages.gz
+ 3b96a41127d98dfa9f09631dfc725f2d 496 main/binary-amd64/Packages
+ 2fd041fb2f950f99f270aa2ab6fcf6d9 364 main/binary-amd64/Packages.gz
  b53a958f8372ba83c603a9de8e8edfb6 124 main/binary-amd64/Release
- 508e689ac09953b49ac37b6d71bd173b 496 main/binary-arm64/Packages
- b58364b71dfc8d37f446efa58159959b 367 main/binary-arm64/Packages.gz
+ e90aeb783587a3a8c40b3cf1aeca6ce0 496 main/binary-arm64/Packages
+ 6c641f228bb3787e5a4a2a0db66d6893 369 main/binary-arm64/Packages.gz
  59c943bc4821e20034e3520cd3554709 124 main/binary-arm64/Release
 SHA1:
- 5e1cf09bc3c3e3bae1d86515aecb4137deba1e07 496 main/binary-amd64/Packages
- 494995411d4e6005675f95938faec2c83ab807b6 369 main/binary-amd64/Packages.gz
+ 836010fe6026ecc14197e49275ef0e3fd5190b59 496 main/binary-amd64/Packages
+ ef85f7a33b30ba79d82694722b70e56c7e1e3fc4 364 main/binary-amd64/Packages.gz
  ff82520359e94aeca3f8409578c5d3864bc99cd3 124 main/binary-amd64/Release
- b87c69b86049112c5fa0dedf5a80a68301491f84 496 main/binary-arm64/Packages
- bf4bcc6a40619936c9767a311ec9742825cbe171 367 main/binary-arm64/Packages.gz
+ 5078a55e8d4c1263d385ca1d6b0f83ef9488570c 496 main/binary-arm64/Packages
+ 4f95bb1e1fa341878c2d7745a7f0fe106bc22523 369 main/binary-arm64/Packages.gz
  054ac152a94a3b3a15902751e5e18ec7e6ba63c2 124 main/binary-arm64/Release
 SHA256:
- d8131bcb3eeaa5b3f71013f8364cc67b109548805a3731281b7821db1c052987 496 main/binary-amd64/Packages
- 47957eb51c43bb8874ae609771705a125fc7b09959be415739913611032127aa 369 main/binary-amd64/Packages.gz
+ 92b2e4227cbce5b65e8483332d43004e9b804d4ee122912fde6404d9b3db3269 496 main/binary-amd64/Packages
+ 993d9e03487bf342a179bdba8e1f8e7cab21a701a96ea50dae950ed646a6bf12 364 main/binary-amd64/Packages.gz
  3b8b5c0bd51cf4d03abdfbc42e15ff58e9f65d2e27572242b6ba2c3914139ff6 124 main/binary-amd64/Release
- 45bf94535b7ca4f95590a5a999a5768485211b1bb201e89241c02f710b3e77fa 496 main/binary-arm64/Packages
- 6ffd19de4e423f5bc8ff32a9ea5f8f585461686b19eb07fa93ad641bb87723bd 367 main/binary-arm64/Packages.gz
+ c2aff7c54a445e57920fbc187f14976be9b2d56fe081e6c65e4a3bc5f828c10d 496 main/binary-arm64/Packages
+ 29c2a619b59adba3b2b071f5cf8d9668f7072b2c3f1d679dda473795349a5e5c 369 main/binary-arm64/Packages.gz
  da29877e60bb751e46bfc4646db797217789e9f7d9dd7331bada93b69c47cbe7 124 main/binary-arm64/Release

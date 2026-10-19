@@ -1,16 +1,16 @@
 Package: galtea
-Version: 5.8.1
+Version: 5.9.0
 Architecture: amd64
 Maintainer: Galtea AI <info@galtea.ai>
-Installed-Size: 30856
+Installed-Size: 31044
 Homepage: https://galtea.ai
 Priority: optional
 Section: 
-Filename: pool/main/g/galtea/galtea_5.8.1_amd64.deb
-Size: 9658554
-SHA256: 84783274c0be5284daa27f2de8a44ab71d13f26b4a06c8093738e304dcacc67a
-SHA1: 4e936b0a08c7897083808ad4e9a0776861bc1cd6
-MD5sum: 9abcbbc9a244dcf59f81e92d02fe1051
+Filename: pool/main/g/galtea/galtea_5.9.0_amd64.deb
+Size: 9704500
+SHA256: 1891ac7e887ffa600a06fb695cd10730fba4ae682e966fadaef78876e7151f8f
+SHA1: 95364eac1dd4a088ce353c160caf841f8ab3fc87
+MD5sum: 54cfcfb9e132f68a5f5e92563bb71622
 Description: Galtea CLI - terminal-native client for the Galtea AI testing &
  evaluation platform.
 
