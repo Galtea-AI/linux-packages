@@ -5,44 +5,44 @@ Origin: Galtea
 Label: Galtea CLI
 Suite: stable
 Codename: stable
-Date: Mon, 26 Oct 2026 08:57:31 UTC
+Date: Mon, 26 Oct 2026 16:45:20 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Galtea CLI APT repository
 MD5Sum:
- bcc4c6d6a4276efe9b41e61b3d1a999c 498 main/binary-amd64/Packages
- 675b8487c80800835172fd1e84b17e5e 368 main/binary-amd64/Packages.gz
+ 9c4ea386f47a77a9b5f4dd6ada3a82dc 498 main/binary-amd64/Packages
+ d43f29a64c91de2054700605a7195cf8 369 main/binary-amd64/Packages.gz
  b53a958f8372ba83c603a9de8e8edfb6 124 main/binary-amd64/Release
- fd430beb5c83e7951f75b7259b582336 498 main/binary-arm64/Packages
- a37761e8d962f3152682aecb6d7b137a 365 main/binary-arm64/Packages.gz
+ 52a08e773d16b5c866892553d17e8c37 498 main/binary-arm64/Packages
+ 2303bf721346e0f9ba1f91799e4585c6 369 main/binary-arm64/Packages.gz
  59c943bc4821e20034e3520cd3554709 124 main/binary-arm64/Release
 SHA1:
- cf11534ce93c0d18ca0ffcdfb748ab0c9b844da1 498 main/binary-amd64/Packages
- 8f7d8790a0e08b6eccbe2b40289e64036279c910 368 main/binary-amd64/Packages.gz
+ 7bb1dc408d29e2eb8e9578efce0f916cf6ef7e5e 498 main/binary-amd64/Packages
+ 2aa7b4cd707bc4698bb192aa58f445d1d225a5e5 369 main/binary-amd64/Packages.gz
  ff82520359e94aeca3f8409578c5d3864bc99cd3 124 main/binary-amd64/Release
- 684d1f09c123ac26ab217a1d0278babf4bcea984 498 main/binary-arm64/Packages
- 2f084befce89172bddaa1fd38e4ad682c2d178e9 365 main/binary-arm64/Packages.gz
+ de88dd6a8dfe9c2d271eaf1552cf20b6a7716d03 498 main/binary-arm64/Packages
+ 21854017b178cd6710ca42013a6ef6d070c80188 369 main/binary-arm64/Packages.gz
  054ac152a94a3b3a15902751e5e18ec7e6ba63c2 124 main/binary-arm64/Release
 SHA256:
- e7ceacd6f6ad9e155d67a34d4a6b5cc78a5ed58a6114b9937e2439e3a0689a47 498 main/binary-amd64/Packages
- 1bf85d8dbe8c069c87ecda8424241a7118efac9ca418abe0c47479f351885dee 368 main/binary-amd64/Packages.gz
+ deadd9905d713e59ff9bb49105573497a0ca6b4010bce9a1d746509abb754884 498 main/binary-amd64/Packages
+ 2aa934d54c472a24f8ab79f529cb17b29c1fbcf73485fa4347c474c0918b6b7f 369 main/binary-amd64/Packages.gz
  3b8b5c0bd51cf4d03abdfbc42e15ff58e9f65d2e27572242b6ba2c3914139ff6 124 main/binary-amd64/Release
- 67bdec01e51809f0c69d9d398faf62654bfdf4f6707709b8d826af2fc282593f 498 main/binary-arm64/Packages
- 531f493e288f53eeca003c297ec0484cc17c7fb31907fda0152a9bf5cdca8107 365 main/binary-arm64/Packages.gz
+ 70bad3749243c721cad8082889cb4806e29f1eb3892044bbb8a9ba354ee905ef 498 main/binary-arm64/Packages
+ c5a325880b792340e0da6288c4c0d7d876601bf415f3d5c898672d51e80afbb4 369 main/binary-arm64/Packages.gz
  da29877e60bb751e46bfc4646db797217789e9f7d9dd7331bada93b69c47cbe7 124 main/binary-arm64/Release
 -----BEGIN PGP SIGNATURE-----
 
-iQIzBAEBCgAdFiEEglatfIb/qYggY/Tf0UyZVmG3W/MFAmrfFfsACgkQ0UyZVmG3
-W/NiLRAAnoVpV53WpdwqyQjgGwcgGfPD+sXZTycWs+WfiyjQdGrMGmyc0xj9n4Fk
-cbtVVS4CucF664xHmtmgo5z/gCTcF8pe5/nxqzpM34wXS02B4rb9g5ubG1AdE7wz
-J47IlwzwoRP7Sa19xjC9k8xL4u0qB/mSa08bU80f+4FVQ4gQuaslcbHH7i+d9bxw
-EclIDnm2oUCb0o3trtjA/TkSNugUF6MuDZBTaji6sYcfQU/UJ1WjYjUcMKXK7Tmj
-O+lZ0tptUNrhACSDZuXG3EIoka3DRVjs5qu+E1gJIkwUQbr6pvzaE0+q3xNG42X2
-tdNe2Yizggr1zx6uwwUBxVO7PSaWmUs3Aqnk1Mf4u37O/EkaGmd/tt661HuBTCvS
-Ty3PExPJOj9e2gLzcVA6N2NcZ1dm548baEUUi/SPJggfLd9fsOoBTJrQ5u4DV5RN
-qfE9emcmbmjOz+0xCjbKJRl3S3bv0WrTzcUlLknHzxK8d5+dhfyOGJCAX38/rarZ
-cXmSxagjVvQWg4WjNR5uhGCUkg+r9wTfRyifC/eiFnILcY9nbjRqVU5fpWHH+9cp
-2FTIyhFdZLPBNkBmaBfFWbe7n68CY9dwJdxAxQVqIbXwujtZcUg27qv4XYq92xs3
-s0i5zIZv8rk8S8mBii5t7GzRra9MlLOoacry1yqUvvnpyCHfLvA=
-=eI+G
+iQIzBAEBCgAdFiEEglatfIb/qYggY/Tf0UyZVmG3W/MFAmrfg6EACgkQ0UyZVmG3
+W/MKrxAAnNUrL79kKFE+MYaDAlWix7PSHPyl3pSpfNwdtc5z2OACz95lJIilPLbB
+19+MKpgrQuC6kIyMDkWTtI2QCqXRQOMh7R+SC+y9plTtdx8YqNHvfrpL2bOgO5BN
+b5TZJMlf6KRVEWawqGGZS7pIL/98chH0YP9nSazJSoD4pazohojjVJSMh4IMBJUH
+CD3SPQo3Mm6q51aqzhq1lfs4uuvUFrtheCTcVAV6zlKHLfiQ5QpRcf0HK2eOUvlF
+M/3oM5ymJhm6gW6HJeQ/7UC6JrgXvdGT9V3eD5eNPBaU4CNEqT2FNnJUc0g6xDwm
+LKcrZfKs7MKfJxBTzduSFcod+501sQ8LPyQAsdZdGqHn1VntXXjPH8rpEcsupq8Q
+9JAGg4VA5wlO6x3e8g5sJyXoBhA/OYFBB4qzMkSCXBWuEQs4DcW7ffCDxYXu8iCQ
+bEvoS58Ow4pFbF3tTCnwF7WczkWbQa3i9J2qSiLtX6R3TRKV55zLC2ZUtMFb5lbu
+JNn/Bt4PyG0XVi9A1W8yFAEsmi9RdAKFvWWzL90E6i5G3C53kOGGpEOQrIuOcAOF
+JfXzEhEP5ttN5eFMnP3Sa3tFGvErpN28231nG4XIOP1oG6jBKnDsPP1CLTK004zE
+bhwqhd0Fkm6GEcMqr7heaHs8+7bVNgmq7QcYdXLyGHd5pyDI7Hw=
+=NNpQ
 -----END PGP SIGNATURE-----
