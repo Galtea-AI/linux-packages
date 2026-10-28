@@ -16,6 +16,10 @@ on:
         description: '🎯 Reindex a single release tag (e.g. v0.5.2). Leave blank for incremental sync.'
         type: string
         required: false
+      republish:
+        description: '☁️  Upload the repository as it is to S3 and CloudFront, without ingesting releases (first fill of the bucket)'
+        type: boolean
+        default: false
 
   # Drift catcher — fills any gaps if a previous run failed silently.
   schedule:
@@ -23,6 +27,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: linux-packages-sync
@@ -31,11 +36,17 @@ concurrency:
 env:
   MONOREPO: Galtea-AI/monorepo
   APT_DISTRIBUTION: stable
+  AWS_REGION: eu-west-1
 
 jobs:
   sync:
     name: 🔄 Sync index
     runs-on: ubuntu-latest
+    env:
+      # Repository variables. Until all three are set, every S3 step is skipped.
+      PKGS_AWS_ROLE_ARN: ${{ vars.PKGS_AWS_ROLE_ARN }}
+      PKGS_S3_BUCKET: ${{ vars.PKGS_S3_BUCKET }}
+      PKGS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PKGS_CLOUDFRONT_DISTRIBUTION_ID }}
     steps:
       - name: 📥 Checkout linux-packages
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -67,6 +78,25 @@ jobs:
             echo "  • Schedule:  daily drift catcher"
           fi
           echo "::endgroup::"
+
+      - name: ☁️  Check S3 publishing is configured
+        id: pkgs
+        run: |
+          set -euo pipefail
+          if [ -n "$PKGS_AWS_ROLE_ARN" ] && [ -n "$PKGS_S3_BUCKET" ] && [ -n "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "☁️  S3 publishing enabled: bucket $PKGS_S3_BUCKET"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️  S3 publishing skipped: set the repository variables PKGS_AWS_ROLE_ARN, PKGS_S3_BUCKET and PKGS_CLOUDFRONT_DISTRIBUTION_ID to enable it."
+          fi
+
+      - name: ☁️  Configure AWS credentials (GitHub OIDC)
+        if: steps.pkgs.outputs.enabled == 'true'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        with:
+          role-to-assume: ${{ vars.PKGS_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: 🛠️  Install indexing tools
         run: |
@@ -103,6 +133,22 @@ jobs:
           %_gpg_name $GPG_NAME
           %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
           MACROS
+
+      # The bucket copy of .ingested-tags is the manifest once packages leave git.
+      # A force run starts from an empty manifest, so it skips the merge.
+      - name: 📋 Merge .ingested-tags from S3
+        if: steps.pkgs.outputs.enabled == 'true' && github.event.inputs.force != 'true'
+        run: |
+          set -euo pipefail
+          touch .ingested-tags
+          if aws s3 cp "s3://$PKGS_S3_BUCKET/.ingested-tags" staging-ingested-tags --only-show-errors 2>/dev/null; then
+            cat .ingested-tags staging-ingested-tags | grep . | sort -uV > staging-merged-tags
+            mv staging-merged-tags .ingested-tags
+            rm -f staging-ingested-tags
+            echo "📋 Merged the bucket manifest: $(wc -l < .ingested-tags | tr -d ' ') tag(s)"
+          else
+            echo "📋 No manifest in the bucket yet: using the one in git"
+          fi
 
       - name: 🎯 Determine target releases
         id: targets
@@ -197,6 +243,19 @@ jobs:
           echo "  • After:  index wiped — every artifact will be re-ingested"
           echo "::endgroup::"
 
+      # The index covers every package in the pool, so the pool must be whole
+      # before indexing. The bucket holds every released package: syncing it down
+      # is much faster than downloading about 860 MB of release assets again.
+      - name: ⬇️  Sync the package pool from S3
+        if: steps.pkgs.outputs.enabled == 'true' && steps.targets.outputs.mode != 'force' && steps.targets.outputs.targets != ''
+        run: |
+          set -euo pipefail
+          mkdir -p apt/pool yum
+          # --size-only: a fresh checkout stamps every file with the current time.
+          aws s3 sync "s3://$PKGS_S3_BUCKET/apt/pool" apt/pool --size-only --only-show-errors
+          aws s3 sync "s3://$PKGS_S3_BUCKET/yum" yum --exclude '*' --include '*.rpm' --size-only --only-show-errors
+          echo "⬇️  Pool: $(find apt/pool -name '*.deb' | wc -l | tr -d ' ') .deb, $(find yum -maxdepth 1 -name '*.rpm' | wc -l | tr -d ' ') .rpm"
+
       - name: ⬇️  Download and ingest target releases
         if: steps.targets.outputs.targets != ''
         env:
@@ -284,15 +343,19 @@ jobs:
         if: steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
-          echo "::group::🔏 rpmsign --addsign on every .rpm in yum/"
+          echo "::group::🔏 rpmsign --addsign on every .rpm ingested in this run"
+          # Only the RPMs ingested in this run: an RPM in the pool is signed
+          # already, and re-signing changes its bytes, so the sync would upload
+          # all of them again.
+          #
           # DNF with gpgcheck=1 validates BOTH the repodata signature
           # (repomd.xml.asc) AND the embedded signature inside each .rpm.
           # GoReleaser's nfpms produces unsigned .rpm files, so we sign
           # them here with the same release-signing key. Idempotent —
           # rpmsign overwrites any existing embedded signature.
           shopt -s nullglob
-          for rpm in yum/*.rpm; do
-            rpmsign --addsign "$rpm"
+          for rpm in staging/*/*.rpm; do
+            rpmsign --addsign "yum/$(basename "$rpm")"
             echo "  ✔  $(basename "$rpm")"
           done
           echo "::endgroup::"
@@ -326,6 +389,55 @@ jobs:
           echo "::group::📝 .ingested-tags now contains"
           sed 's/^/      /' .ingested-tags
           echo "::endgroup::"
+
+      # Order matters: packages and static files first, then the indexes, so a
+      # client never reads an index that names a missing file. Nothing is deleted.
+      - name: ☁️  Publish to S3
+        id: s3
+        if: steps.pkgs.outputs.enabled == 'true' && (steps.targets.outputs.targets != '' || github.event.inputs.republish == 'true')
+        run: |
+          set -euo pipefail
+          B="s3://$PKGS_S3_BUCKET"
+          LONG='public, max-age=31536000, immutable'
+          SHORT='public, max-age=60'
+          # An RPM keeps a short cache: a force run signs it again under the same name.
+          RPM='public, max-age=300'
+
+          echo "::group::☁️  Packages and static files"
+          # --size-only: a fresh checkout stamps every file with the current time, and a
+          # .deb never changes under the same name. A force run signs every RPM again
+          # with the same size, so it compares by time instead.
+          RPM_COMPARE='--size-only'
+          if [ "${{ steps.targets.outputs.mode }}" = "force" ]; then RPM_COMPARE=''; fi
+          aws s3 sync apt/pool "$B/apt/pool" --size-only --cache-control "$LONG" --only-show-errors
+          # shellcheck disable=SC2086
+          aws s3 sync yum "$B/yum" --exclude '*' --include '*.rpm' $RPM_COMPARE --cache-control "$RPM" --only-show-errors
+          for f in public.key favicon.svg; do
+            aws s3 cp "$f" "$B/$f" --cache-control "$SHORT" --only-show-errors
+          done
+          echo "::endgroup::"
+
+          echo "::group::☁️  Indexes"
+          D="apt/dists/$APT_DISTRIBUTION"
+          aws s3 sync "$D/main" "$B/apt/dists/$APT_DISTRIBUTION/main" --cache-control "$SHORT" --only-show-errors
+          aws s3 cp "$D/Release" "$B/apt/dists/$APT_DISTRIBUTION/Release" --cache-control "$SHORT" --only-show-errors
+          aws s3 cp "$D/Release.gpg" "$B/apt/dists/$APT_DISTRIBUTION/Release.gpg" --cache-control "$SHORT" --only-show-errors
+          aws s3 cp "$D/InRelease" "$B/apt/dists/$APT_DISTRIBUTION/InRelease" --cache-control "$SHORT" --only-show-errors
+          # Hashed repodata files first, repomd.xml (the entry point) last.
+          aws s3 sync yum/repodata "$B/yum/repodata" --exclude 'repomd.xml*' --cache-control "$SHORT" --only-show-errors
+          aws s3 cp yum/repodata/repomd.xml "$B/yum/repodata/repomd.xml" --cache-control "$SHORT" --only-show-errors
+          aws s3 cp yum/repodata/repomd.xml.asc "$B/yum/repodata/repomd.xml.asc" --cache-control "$SHORT" --only-show-errors
+          aws s3 cp index.html "$B/index.html" --cache-control "$SHORT" --content-type 'text/html; charset=utf-8' --only-show-errors
+          echo "::endgroup::"
+
+          echo "::group::☁️  Manifest and CloudFront invalidation"
+          aws s3 cp .ingested-tags "$B/.ingested-tags" --cache-control 'no-store' --only-show-errors
+          aws cloudfront create-invalidation \
+            --distribution-id "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths '/apt/dists/*' '/yum/repodata/*' '/index.html' \
+            --query 'Invalidation.Id' --output text
+          echo "::endgroup::"
+          echo "published=true" >> "$GITHUB_OUTPUT"
 
       - name: 🚀 Commit and push
         id: commit
@@ -369,6 +481,7 @@ jobs:
           TARGET_COUNT: ${{ steps.targets.outputs.target_count }}
           TARGETS: ${{ steps.targets.outputs.targets }}
           PUSHED: ${{ steps.commit.outputs.pushed }}
+          S3: ${{ steps.s3.outputs.published }}
         run: |
           {
             echo "## ${EMOJI:-🟰} Sync run summary"
@@ -381,5 +494,6 @@ jobs:
               echo "| Tags | \`${TARGETS}\` |"
             fi
             echo "| Pushed to main | ${PUSHED:-false} |"
+            echo "| Published to S3 | ${S3:-false} |"
             echo "| Index URL | <https://pkgs.galtea.ai> |"
           } >> "$GITHUB_STEP_SUMMARY"
