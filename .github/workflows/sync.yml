@@ -125,7 +125,9 @@ jobs:
           %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
           MACROS
 
-      # The bucket manifest is the only manifest. A force run starts from an empty one.
+      # The bucket manifest is the only manifest, so a missing or unreadable one
+      # must stop the run: reading it as empty would ingest every release again.
+      # Only a force run starts without one.
       - name: 📋 Read the ingested tags
         env:
           FORCE_INPUT: ${{ github.event.inputs.force }}
@@ -134,6 +136,14 @@ jobs:
           mkdir -p staging
           : > staging/bucket-tags
           if [ "$FORCE_INPUT" != "true" ]; then
+            if ! ERR=$(aws s3api head-object --bucket "$PKGS_S3_BUCKET" --key .ingested-tags 2>&1 > /dev/null); then
+              if printf '%s' "$ERR" | grep -qE '\(404\)|NoSuchKey|Not Found'; then
+                echo "::error::The bucket has no .ingested-tags manifest. Run with force=true to rebuild it."
+              else
+                echo "::error::Could not read the .ingested-tags manifest: $ERR"
+              fi
+              exit 1
+            fi
             aws s3 cp "s3://$PKGS_S3_BUCKET/.ingested-tags" staging/bucket-tags --only-show-errors
           fi
           cp staging/bucket-tags staging/effective-tags
