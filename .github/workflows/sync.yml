@@ -266,6 +266,7 @@ jobs:
           mkdir -p staging
           TOTAL_DEB=0
           TOTAL_RPM=0
+          : > staging/new-rpms.txt
 
           for tag in $TARGETS; do
             echo "::group::📦 $tag"
@@ -281,18 +282,30 @@ jobs:
             RPM_COUNT=$(find "staging/$tag" -maxdepth 1 -name '*.rpm' | wc -l | tr -d ' ')
             echo "  ✔  Downloaded: $DEB_COUNT .deb, $RPM_COUNT .rpm"
 
+            # A package the pool already holds is never replaced: a published
+            # file stays byte-stable, and an RPM is signed once.
             echo "  🗂️  Copying .deb into apt/pool/ …"
             mkdir -p apt/pool/main/g/galtea
             for deb in staging/"$tag"/*.deb; do
               [ -e "$deb" ] || continue
-              cp -f "$deb" apt/pool/main/g/galtea/
+              if [ -e "apt/pool/main/g/galtea/$(basename "$deb")" ]; then
+                echo "      = $(basename "$deb") (already in the pool)"
+                continue
+              fi
+              cp "$deb" apt/pool/main/g/galtea/
               echo "      + $(basename "$deb")"
             done
 
             echo "  🗂️  Copying .rpm into yum/ …"
+            mkdir -p yum
             for rpm in staging/"$tag"/*.rpm; do
               [ -e "$rpm" ] || continue
-              cp -f "$rpm" yum/
+              if [ -e "yum/$(basename "$rpm")" ]; then
+                echo "      = $(basename "$rpm") (already in the pool)"
+                continue
+              fi
+              cp "$rpm" yum/
+              basename "$rpm" >> staging/new-rpms.txt
               echo "      + $(basename "$rpm")"
             done
 
@@ -343,10 +356,9 @@ jobs:
         if: steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
-          echo "::group::🔏 rpmsign --addsign on every .rpm ingested in this run"
-          # Only the RPMs ingested in this run: an RPM in the pool is signed
-          # already, and re-signing changes its bytes, so the sync would upload
-          # all of them again.
+          echo "::group::🔏 rpmsign --addsign on every .rpm new to the pool"
+          # Only the RPMs new to the pool: an RPM in the pool is signed already,
+          # and re-signing changes its bytes.
           #
           # DNF with gpgcheck=1 validates BOTH the repodata signature
           # (repomd.xml.asc) AND the embedded signature inside each .rpm.
@@ -354,10 +366,11 @@ jobs:
           # them here with the same release-signing key. Idempotent —
           # rpmsign overwrites any existing embedded signature.
           shopt -s nullglob
-          for rpm in staging/*/*.rpm; do
-            rpmsign --addsign "yum/$(basename "$rpm")"
-            echo "  ✔  $(basename "$rpm")"
-          done
+          while read -r name; do
+            [ -n "$name" ] || continue
+            rpmsign --addsign "yum/$name"
+            echo "  ✔  $name"
+          done < staging/new-rpms.txt
           echo "::endgroup::"
 
       - name: 🔏 Regenerate YUM metadata and sign repodata
