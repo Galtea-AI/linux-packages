@@ -350,8 +350,19 @@ jobs:
             -o "APT::FTPArchive::Release::Architectures=amd64 arm64" \
             -o APT::FTPArchive::Release::Components=main \
             -o "APT::FTPArchive::Release::Description=Galtea CLI APT repository" \
+            -o APT::FTPArchive::Release::Acquire-By-Hash=yes \
             release "dists/$APT_DISTRIBUTION" > ../staging/Release
           mv ../staging/Release "dists/$APT_DISTRIBUTION/Release"
+          # By-hash copies, added after Release is hashed. A client that holds an
+          # older InRelease still finds the files it names, so a partial upload
+          # never causes a Hash Sum mismatch. The files are never deleted.
+          for arch in amd64 arm64; do
+            bin="dists/$APT_DISTRIBUTION/main/binary-$arch"
+            mkdir -p "$bin/by-hash/SHA256"
+            for f in "$bin/Packages" "$bin/Packages.gz"; do
+              cp "$f" "$bin/by-hash/SHA256/$(sha256sum "$f" | cut -d' ' -f1)"
+            done
+          done
           gpg --batch --yes --clearsign -o "dists/$APT_DISTRIBUTION/InRelease" "dists/$APT_DISTRIBUTION/Release"
           gpg --batch --yes --detach-sign --armor -o "dists/$APT_DISTRIBUTION/Release.gpg" "dists/$APT_DISTRIBUTION/Release"
           echo "  ✔  APT index regenerated and signed"
@@ -438,7 +449,11 @@ jobs:
 
           echo "::group::☁️  Indexes"
           D="apt/dists/$APT_DISTRIBUTION"
-          aws s3 sync "$D/main" "$B/apt/dists/$APT_DISTRIBUTION/main" --cache-control "$SHORT" --only-show-errors
+          # by-hash files first (immutable), then Packages, then Release and InRelease.
+          for arch in amd64 arm64; do
+            aws s3 sync "$D/main/binary-$arch/by-hash" "$B/apt/dists/$APT_DISTRIBUTION/main/binary-$arch/by-hash" --cache-control "$LONG" --only-show-errors
+          done
+          aws s3 sync "$D/main" "$B/apt/dists/$APT_DISTRIBUTION/main" --exclude '*/by-hash/*' --cache-control "$SHORT" --only-show-errors
           aws s3 cp "$D/Release" "$B/apt/dists/$APT_DISTRIBUTION/Release" --cache-control "$SHORT" --only-show-errors
           aws s3 cp "$D/Release.gpg" "$B/apt/dists/$APT_DISTRIBUTION/Release.gpg" --cache-control "$SHORT" --only-show-errors
           aws s3 cp "$D/InRelease" "$B/apt/dists/$APT_DISTRIBUTION/InRelease" --cache-control "$SHORT" --only-show-errors
