@@ -16,6 +16,10 @@ on:
         description: '🎯 Reindex a single release tag (e.g. v0.5.2). Leave blank for incremental sync.'
         type: string
         required: false
+      republish:
+        description: '☁️  Upload the repository as it is to S3 and CloudFront, without ingesting releases (first fill of the bucket)'
+        type: boolean
+        default: false
 
   # Drift catcher — fills any gaps if a previous run failed silently.
   schedule:
@@ -121,21 +125,19 @@ jobs:
           %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
           MACROS
 
-      # The bucket copy of .ingested-tags is the only manifest.
-      # A force run starts from an empty manifest, so it skips the merge.
-      - name: 📋 Merge .ingested-tags from S3
-        if: github.event.inputs.force != 'true'
+      # The bucket manifest is the only manifest. A force run starts from an empty one.
+      - name: 📋 Read the ingested tags
+        env:
+          FORCE_INPUT: ${{ github.event.inputs.force }}
         run: |
           set -euo pipefail
-          touch .ingested-tags
-          if aws s3 cp "s3://$PKGS_S3_BUCKET/.ingested-tags" staging-ingested-tags --only-show-errors 2>/dev/null; then
-            cat .ingested-tags staging-ingested-tags | grep . | sort -uV > staging-merged-tags
-            mv staging-merged-tags .ingested-tags
-            rm -f staging-ingested-tags
-            echo "📋 Merged the bucket manifest: $(wc -l < .ingested-tags | tr -d ' ') tag(s)"
-          else
-            echo "📋 No manifest in the bucket yet: starting empty"
+          mkdir -p staging
+          : > staging/bucket-tags
+          if [ "$FORCE_INPUT" != "true" ]; then
+            aws s3 cp "s3://$PKGS_S3_BUCKET/.ingested-tags" staging/bucket-tags --only-show-errors
           fi
+          cp staging/bucket-tags staging/effective-tags
+          echo "📋 Bucket manifest: $(wc -l < staging/bucket-tags | tr -d ' ') tag(s)"
 
       - name: 🎯 Determine target releases
         id: targets
@@ -181,13 +183,13 @@ jobs:
             EMOJI="➕"
             REASON="incremental sync — adding only releases missing from the index"
             TARGETS=""
-            # Source of truth = .ingested-tags (manifest merged from the bucket).
+            # Source of truth = staging/effective-tags (the manifest in the bucket).
             # We previously inferred filenames from the tag name, but goreleaser's
             # snapshot builds bake a "next" version into the artifact name that
             # bears no relation to the tag, so the filename glob never matched
             # and incremental runs re-ingested every release on every run.
             for tag in $ALL_RELEASES; do
-              if ! grep -qxF "$tag" .ingested-tags 2>/dev/null; then
+              if ! grep -qxF "$tag" staging/effective-tags 2>/dev/null; then
                 TARGETS="$TARGETS $tag"
               fi
             done
@@ -226,7 +228,6 @@ jobs:
           rm -rf apt/dists apt/pool
           rm -rf yum/repodata
           find yum -maxdepth 1 -type f -name '*.rpm' -delete
-          rm -f .ingested-tags
           echo "  • After:  index wiped — every artifact will be re-ingested"
           echo "::endgroup::"
 
@@ -253,6 +254,7 @@ jobs:
           mkdir -p staging
           TOTAL_DEB=0
           TOTAL_RPM=0
+          : > staging/new-rpms.txt
 
           for tag in $TARGETS; do
             echo "::group::📦 $tag"
@@ -268,18 +270,30 @@ jobs:
             RPM_COUNT=$(find "staging/$tag" -maxdepth 1 -name '*.rpm' | wc -l | tr -d ' ')
             echo "  ✔  Downloaded: $DEB_COUNT .deb, $RPM_COUNT .rpm"
 
+            # A package the pool already holds is never replaced: a published
+            # file stays byte-stable, and an RPM is signed once.
             echo "  🗂️  Copying .deb into apt/pool/ …"
             mkdir -p apt/pool/main/g/galtea
             for deb in staging/"$tag"/*.deb; do
               [ -e "$deb" ] || continue
-              cp -f "$deb" apt/pool/main/g/galtea/
+              if [ -e "apt/pool/main/g/galtea/$(basename "$deb")" ]; then
+                echo "      = $(basename "$deb") (already in the pool)"
+                continue
+              fi
+              cp "$deb" apt/pool/main/g/galtea/
               echo "      + $(basename "$deb")"
             done
 
             echo "  🗂️  Copying .rpm into yum/ …"
+            mkdir -p yum
             for rpm in staging/"$tag"/*.rpm; do
               [ -e "$rpm" ] || continue
-              cp -f "$rpm" yum/
+              if [ -e "yum/$(basename "$rpm")" ]; then
+                echo "      = $(basename "$rpm") (already in the pool)"
+                continue
+              fi
+              cp "$rpm" yum/
+              basename "$rpm" >> staging/new-rpms.txt
               echo "      + $(basename "$rpm")"
             done
 
@@ -318,8 +332,19 @@ jobs:
             -o "APT::FTPArchive::Release::Architectures=amd64 arm64" \
             -o APT::FTPArchive::Release::Components=main \
             -o "APT::FTPArchive::Release::Description=Galtea CLI APT repository" \
+            -o APT::FTPArchive::Release::Acquire-By-Hash=yes \
             release "dists/$APT_DISTRIBUTION" > ../staging/Release
           mv ../staging/Release "dists/$APT_DISTRIBUTION/Release"
+          # By-hash copies, added after Release is hashed. A client that holds an
+          # older InRelease still finds the files it names, so a partial upload
+          # never causes a Hash Sum mismatch. The files are never deleted.
+          for arch in amd64 arm64; do
+            bin="dists/$APT_DISTRIBUTION/main/binary-$arch"
+            mkdir -p "$bin/by-hash/SHA256"
+            for f in "$bin/Packages" "$bin/Packages.gz"; do
+              cp "$f" "$bin/by-hash/SHA256/$(sha256sum "$f" | cut -d' ' -f1)"
+            done
+          done
           gpg --batch --yes --clearsign -o "dists/$APT_DISTRIBUTION/InRelease" "dists/$APT_DISTRIBUTION/Release"
           gpg --batch --yes --detach-sign --armor -o "dists/$APT_DISTRIBUTION/Release.gpg" "dists/$APT_DISTRIBUTION/Release"
           echo "  ✔  APT index regenerated and signed"
@@ -330,10 +355,9 @@ jobs:
         if: steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
-          echo "::group::🔏 rpmsign --addsign on every .rpm ingested in this run"
-          # Only the RPMs ingested in this run: an RPM in the pool is signed
-          # already, and re-signing changes its bytes, so the sync would upload
-          # all of them again.
+          echo "::group::🔏 rpmsign --addsign on every .rpm new to the pool"
+          # Only the RPMs new to the pool: an RPM in the pool is signed already,
+          # and re-signing changes its bytes.
           #
           # DNF with gpgcheck=1 validates BOTH the repodata signature
           # (repomd.xml.asc) AND the embedded signature inside each .rpm.
@@ -341,10 +365,11 @@ jobs:
           # them here with the same release-signing key. Idempotent —
           # rpmsign overwrites any existing embedded signature.
           shopt -s nullglob
-          for rpm in staging/*/*.rpm; do
-            rpmsign --addsign "yum/$(basename "$rpm")"
-            echo "  ✔  $(basename "$rpm")"
-          done
+          while read -r name; do
+            [ -n "$name" ] || continue
+            rpmsign --addsign "yum/$name"
+            echo "  ✔  $name"
+          done < staging/new-rpms.txt
           echo "::endgroup::"
 
       - name: 🔏 Regenerate YUM metadata and sign repodata
@@ -359,36 +384,17 @@ jobs:
           ls -la yum/repodata/ | sed 's/^/      /'
           echo "::endgroup::"
 
-      - name: 📝 Update ingested-tags manifest
-        if: steps.targets.outputs.targets != ''
-        env:
-          TARGETS: ${{ steps.targets.outputs.targets }}
-        run: |
-          set -euo pipefail
-          # Append the tags we just ingested to .ingested-tags. Sorted &
-          # de-duplicated so the file remains a stable source of truth
-          # for the next incremental run.
-          touch .ingested-tags
-          for tag in $TARGETS; do
-            echo "$tag"
-          done >> .ingested-tags
-          sort -uV -o .ingested-tags .ingested-tags
-          echo "::group::📝 .ingested-tags now contains"
-          sed 's/^/      /' .ingested-tags
-          echo "::endgroup::"
-
       # Order matters: packages and static files first, then the indexes, so a
       # client never reads an index that names a missing file. Nothing is deleted.
       - name: ☁️  Publish to S3
         id: s3
-        if: steps.targets.outputs.targets != ''
+        if: steps.targets.outputs.targets != '' || github.event.inputs.republish == 'true'
         run: |
           set -euo pipefail
           B="s3://$PKGS_S3_BUCKET"
           LONG='public, max-age=31536000, immutable'
+          touch staging/new-rpms.txt
           SHORT='public, max-age=60'
-          # An RPM keeps a short cache: a force run signs it again under the same name.
-          RPM='public, max-age=300'
 
           echo "::group::☁️  Packages and static files"
           # --size-only: a fresh checkout stamps every file with the current time, and a
@@ -398,7 +404,7 @@ jobs:
           if [ "${{ steps.targets.outputs.mode }}" = "force" ]; then RPM_COMPARE=''; fi
           aws s3 sync apt/pool "$B/apt/pool" --size-only --cache-control "$LONG" --only-show-errors
           # shellcheck disable=SC2086
-          aws s3 sync yum "$B/yum" --exclude '*' --include '*.rpm' $RPM_COMPARE --cache-control "$RPM" --only-show-errors
+          aws s3 sync yum "$B/yum" --exclude '*' --include '*.rpm' $RPM_COMPARE --cache-control "$SHORT" --only-show-errors
           for f in public.key favicon.svg; do
             aws s3 cp "$f" "$B/$f" --cache-control "$SHORT" --only-show-errors
           done
@@ -406,7 +412,11 @@ jobs:
 
           echo "::group::☁️  Indexes"
           D="apt/dists/$APT_DISTRIBUTION"
-          aws s3 sync "$D/main" "$B/apt/dists/$APT_DISTRIBUTION/main" --cache-control "$SHORT" --only-show-errors
+          # by-hash files first (immutable), then Packages, then Release and InRelease.
+          for arch in amd64 arm64; do
+            aws s3 sync "$D/main/binary-$arch/by-hash" "$B/apt/dists/$APT_DISTRIBUTION/main/binary-$arch/by-hash" --cache-control "$LONG" --only-show-errors
+          done
+          aws s3 sync "$D/main" "$B/apt/dists/$APT_DISTRIBUTION/main" --exclude '*/by-hash/*' --cache-control "$SHORT" --only-show-errors
           aws s3 cp "$D/Release" "$B/apt/dists/$APT_DISTRIBUTION/Release" --cache-control "$SHORT" --only-show-errors
           aws s3 cp "$D/Release.gpg" "$B/apt/dists/$APT_DISTRIBUTION/Release.gpg" --cache-control "$SHORT" --only-show-errors
           aws s3 cp "$D/InRelease" "$B/apt/dists/$APT_DISTRIBUTION/InRelease" --cache-control "$SHORT" --only-show-errors
@@ -417,14 +427,34 @@ jobs:
           aws s3 cp index.html "$B/index.html" --cache-control "$SHORT" --content-type 'text/html; charset=utf-8' --only-show-errors
           echo "::endgroup::"
 
-          echo "::group::☁️  Manifest and CloudFront invalidation"
-          aws s3 cp .ingested-tags "$B/.ingested-tags" --cache-control 'no-store' --only-show-errors
+          echo "::group::☁️  CloudFront invalidation"
+          # An RPM uploaded in this run can replace an object with the same name
+          # (a force run signs it again), so its path is invalidated too.
+          PATHS=('/apt/dists/*' '/yum/repodata/*' '/index.html')
+          while read -r name; do
+            if [ -n "$name" ]; then PATHS+=("/yum/$name"); fi
+          done < staging/new-rpms.txt
           aws cloudfront create-invalidation \
             --distribution-id "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" \
-            --paths '/apt/dists/*' '/yum/repodata/*' '/index.html' \
+            --paths "${PATHS[@]}" \
             --query 'Invalidation.Id' --output text
           echo "::endgroup::"
           echo "published=true" >> "$GITHUB_OUTPUT"
+
+      # Last action of the run: a failure in any earlier step leaves the tag out
+      # of the bucket manifest, so the next run ingests it again.
+      - name: 📋 Upload the bucket manifest
+        if: steps.s3.outputs.published == 'true'
+        env:
+          TARGETS: ${{ steps.targets.outputs.targets }}
+        run: |
+          set -euo pipefail
+          {
+            cat staging/bucket-tags
+            for tag in $TARGETS; do echo "$tag"; done
+          } | grep . | sort -uV > staging/new-bucket-tags
+          aws s3 cp staging/new-bucket-tags "s3://$PKGS_S3_BUCKET/.ingested-tags" --cache-control 'no-store' --only-show-errors
+          echo "📋 Bucket manifest: $(wc -l < staging/new-bucket-tags | tr -d ' ') tag(s)"
 
       - name: 🏁 Run summary
         if: always()
