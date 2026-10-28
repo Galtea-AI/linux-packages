@@ -134,21 +134,26 @@ jobs:
           %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
           MACROS
 
-      # The bucket copy of .ingested-tags is the manifest once packages leave git.
-      # A force run starts from an empty manifest, so it skips the merge.
-      - name: 📋 Merge .ingested-tags from S3
-        if: steps.pkgs.outputs.enabled == 'true' && github.event.inputs.force != 'true'
+      # While Pages is live, a tag counts as ingested only when the git manifest
+      # and the bucket manifest both list it: a release missing from either
+      # destination is ingested again. A force run starts from an empty manifest.
+      - name: 📋 Compute the ingested tags
         run: |
           set -euo pipefail
-          touch .ingested-tags
-          if aws s3 cp "s3://$PKGS_S3_BUCKET/.ingested-tags" staging-ingested-tags --only-show-errors 2>/dev/null; then
-            cat .ingested-tags staging-ingested-tags | grep . | sort -uV > staging-merged-tags
-            mv staging-merged-tags .ingested-tags
-            rm -f staging-ingested-tags
-            echo "📋 Merged the bucket manifest: $(wc -l < .ingested-tags | tr -d ' ') tag(s)"
+          mkdir -p staging
+          touch .ingested-tags staging/bucket-tags
+          if [ "$FORCE_INPUT" = "true" ]; then
+            : > staging/effective-tags
+          elif [ "$PKGS_ENABLED" = "true" ]; then
+            aws s3 cp "s3://$PKGS_S3_BUCKET/.ingested-tags" staging/bucket-tags --only-show-errors 2>/dev/null || : > staging/bucket-tags
+            grep -xFf staging/bucket-tags .ingested-tags | sort -uV > staging/effective-tags || true
+            echo "📋 git: $(wc -l < .ingested-tags | tr -d ' ') tag(s), bucket: $(wc -l < staging/bucket-tags | tr -d ' '), both: $(wc -l < staging/effective-tags | tr -d ' ')"
           else
-            echo "📋 No manifest in the bucket yet: using the one in git"
+            cp .ingested-tags staging/effective-tags
           fi
+        env:
+          FORCE_INPUT: ${{ github.event.inputs.force }}
+          PKGS_ENABLED: ${{ steps.pkgs.outputs.enabled }}
 
       - name: 🎯 Determine target releases
         id: targets
@@ -194,13 +199,14 @@ jobs:
             EMOJI="➕"
             REASON="incremental sync — adding only releases missing from the index"
             TARGETS=""
-            # Source of truth = .ingested-tags (manifest committed to repo).
+            # Source of truth = staging/effective-tags (the committed manifest,
+            # restricted to the tags the bucket also lists).
             # We previously inferred filenames from the tag name, but goreleaser's
             # snapshot builds bake a "next" version into the artifact name that
             # bears no relation to the tag, so the filename glob never matched
             # and incremental runs re-ingested every release on every run.
             for tag in $ALL_RELEASES; do
-              if ! grep -qxF "$tag" .ingested-tags 2>/dev/null; then
+              if ! grep -qxF "$tag" staging/effective-tags 2>/dev/null; then
                 TARGETS="$TARGETS $tag"
               fi
             done
@@ -443,8 +449,7 @@ jobs:
           aws s3 cp index.html "$B/index.html" --cache-control "$SHORT" --content-type 'text/html; charset=utf-8' --only-show-errors
           echo "::endgroup::"
 
-          echo "::group::☁️  Manifest and CloudFront invalidation"
-          aws s3 cp .ingested-tags "$B/.ingested-tags" --cache-control 'no-store' --only-show-errors
+          echo "::group::☁️  CloudFront invalidation"
           aws cloudfront create-invalidation \
             --distribution-id "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" \
             --paths '/apt/dists/*' '/yum/repodata/*' '/index.html' \
@@ -485,6 +490,23 @@ jobs:
           echo "::endgroup::"
 
           echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      # Last action of the run: a failure in any earlier step leaves the tag out
+      # of the bucket manifest, so the next run ingests it again.
+      - name: 📋 Upload the bucket manifest
+        if: steps.s3.outputs.published == 'true'
+        env:
+          TARGETS: ${{ steps.targets.outputs.targets }}
+          REPUBLISH: ${{ github.event.inputs.republish }}
+        run: |
+          set -euo pipefail
+          {
+            cat staging/bucket-tags
+            if [ "$REPUBLISH" = "true" ]; then cat .ingested-tags; fi
+            for tag in $TARGETS; do echo "$tag"; done
+          } | grep . | sort -uV > staging/new-bucket-tags
+          aws s3 cp staging/new-bucket-tags "s3://$PKGS_S3_BUCKET/.ingested-tags" --cache-control 'no-store' --only-show-errors
+          echo "📋 Bucket manifest: $(wc -l < staging/new-bucket-tags | tr -d ' ') tag(s)"
 
       - name: 🏁 Run summary
         if: always()
