@@ -17,7 +17,7 @@ on:
         type: string
         required: false
       republish:
-        description: '☁️  Upload the repository as it is to S3 and CloudFront, without ingesting releases (first fill of the bucket)'
+        description: '☁️  Upload public.key, index.html and favicon.svg, upload the current indexes again, and invalidate CloudFront, without ingesting releases'
         type: boolean
         default: false
 
@@ -394,6 +394,13 @@ jobs:
           ls -la yum/repodata/ | sed 's/^/      /'
           echo "::endgroup::"
 
+      - name: ⬇️  Fetch the current indexes (republish)
+        if: steps.targets.outputs.targets == '' && github.event.inputs.republish == 'true'
+        run: |
+          set -euo pipefail
+          aws s3 sync "s3://$PKGS_S3_BUCKET/apt/dists" apt/dists --only-show-errors
+          aws s3 sync "s3://$PKGS_S3_BUCKET/yum/repodata" yum/repodata --only-show-errors
+
       # Order matters: packages and static files first, then the indexes, so a
       # client never reads an index that names a missing file. Nothing is deleted.
       - name: ☁️  Publish to S3
@@ -412,9 +419,14 @@ jobs:
           # with the same size, so it compares by time instead.
           RPM_COMPARE='--size-only'
           if [ "${{ steps.targets.outputs.mode }}" = "force" ]; then RPM_COMPARE=''; fi
-          aws s3 sync apt/pool "$B/apt/pool" --size-only --cache-control "$LONG" --only-show-errors
-          # shellcheck disable=SC2086
-          aws s3 sync yum "$B/yum" --exclude '*' --include '*.rpm' $RPM_COMPARE --cache-control "$SHORT" --only-show-errors
+          # A republish run has no pool: it uploads only the static files and the indexes.
+          if [ -d apt/pool ]; then
+            aws s3 sync apt/pool "$B/apt/pool" --size-only --cache-control "$LONG" --only-show-errors
+          fi
+          if [ -d yum ]; then
+            # shellcheck disable=SC2086
+            aws s3 sync yum "$B/yum" --exclude '*' --include '*.rpm' $RPM_COMPARE --cache-control "$SHORT" --only-show-errors
+          fi
           for f in public.key favicon.svg; do
             aws s3 cp "$f" "$B/$f" --cache-control "$SHORT" --only-show-errors
           done
@@ -424,6 +436,7 @@ jobs:
           D="apt/dists/$APT_DISTRIBUTION"
           # by-hash files first (immutable), then Packages, then Release and InRelease.
           for arch in amd64 arm64; do
+            [ -d "$D/main/binary-$arch/by-hash" ] || continue
             aws s3 sync "$D/main/binary-$arch/by-hash" "$B/apt/dists/$APT_DISTRIBUTION/main/binary-$arch/by-hash" --cache-control "$LONG" --only-show-errors
           done
           aws s3 sync "$D/main" "$B/apt/dists/$APT_DISTRIBUTION/main" --exclude '*/by-hash/*' --cache-control "$SHORT" --only-show-errors
