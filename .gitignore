@@ -4,3 +4,8 @@ staging/
 # OS / editor noise
 .DS_Store
 *.swp
+
+# Generated in the job and published to S3
+apt/
+yum/
+.ingested-tags

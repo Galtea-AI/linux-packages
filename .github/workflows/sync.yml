@@ -16,17 +16,13 @@ on:
         description: '🎯 Reindex a single release tag (e.g. v0.5.2). Leave blank for incremental sync.'
         type: string
         required: false
-      republish:
-        description: '☁️  Upload the repository as it is to S3 and CloudFront, without ingesting releases (first fill of the bucket)'
-        type: boolean
-        default: false
 
   # Drift catcher — fills any gaps if a previous run failed silently.
   schedule:
     - cron: '0 6 * * *'
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 concurrency:
@@ -43,7 +39,7 @@ jobs:
     name: 🔄 Sync index
     runs-on: ubuntu-latest
     env:
-      # Repository variables. Until all three are set, every S3 step is skipped.
+      # Repository variables. The run fails if one is unset.
       PKGS_AWS_ROLE_ARN: ${{ vars.PKGS_AWS_ROLE_ARN }}
       PKGS_S3_BUCKET: ${{ vars.PKGS_S3_BUCKET }}
       PKGS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PKGS_CLOUDFRONT_DISTRIBUTION_ID }}
@@ -51,13 +47,7 @@ jobs:
       - name: 📥 Checkout linux-packages
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          fetch-depth: 0
-          # PAT (org-level secret) belonging to an org/repo admin — the org
-          # ruleset `prevent-push-on-main-copilot` bypasses Organization
-          # admin / Repository admin roles, so this is the actor that can
-          # `git push` to main from CI. The default GITHUB_TOKEN authenticates
-          # as github-actions[bot] which is not in any bypass list.
-          token: ${{ secrets.GALTEA_AI_RELEASES_PAT }}
+          persist-credentials: false
 
       - name: 🛎️  Trigger context
         env:
@@ -80,19 +70,16 @@ jobs:
           echo "::endgroup::"
 
       - name: ☁️  Check S3 publishing is configured
-        id: pkgs
         run: |
           set -euo pipefail
-          if [ -n "$PKGS_AWS_ROLE_ARN" ] && [ -n "$PKGS_S3_BUCKET" ] && [ -n "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "☁️  S3 publishing enabled: bucket $PKGS_S3_BUCKET"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️  S3 publishing skipped: set the repository variables PKGS_AWS_ROLE_ARN, PKGS_S3_BUCKET and PKGS_CLOUDFRONT_DISTRIBUTION_ID to enable it."
-          fi
+          for v in PKGS_AWS_ROLE_ARN PKGS_S3_BUCKET PKGS_CLOUDFRONT_DISTRIBUTION_ID; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Repository variable $v is not set"
+              exit 1
+            fi
+          done
 
       - name: ☁️  Configure AWS credentials (GitHub OIDC)
-        if: steps.pkgs.outputs.enabled == 'true'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
         with:
           role-to-assume: ${{ vars.PKGS_AWS_ROLE_ARN }}
@@ -134,10 +121,10 @@ jobs:
           %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
           MACROS
 
-      # The bucket copy of .ingested-tags is the manifest once packages leave git.
+      # The bucket copy of .ingested-tags is the only manifest.
       # A force run starts from an empty manifest, so it skips the merge.
       - name: 📋 Merge .ingested-tags from S3
-        if: steps.pkgs.outputs.enabled == 'true' && github.event.inputs.force != 'true'
+        if: github.event.inputs.force != 'true'
         run: |
           set -euo pipefail
           touch .ingested-tags
@@ -147,7 +134,7 @@ jobs:
             rm -f staging-ingested-tags
             echo "📋 Merged the bucket manifest: $(wc -l < .ingested-tags | tr -d ' ') tag(s)"
           else
-            echo "📋 No manifest in the bucket yet: using the one in git"
+            echo "📋 No manifest in the bucket yet: starting empty"
           fi
 
       - name: 🎯 Determine target releases
@@ -194,7 +181,7 @@ jobs:
             EMOJI="➕"
             REASON="incremental sync — adding only releases missing from the index"
             TARGETS=""
-            # Source of truth = .ingested-tags (manifest committed to repo).
+            # Source of truth = .ingested-tags (manifest merged from the bucket).
             # We previously inferred filenames from the tag name, but goreleaser's
             # snapshot builds bake a "next" version into the artifact name that
             # bears no relation to the tag, so the filename glob never matched
@@ -247,7 +234,7 @@ jobs:
       # before indexing. The bucket holds every released package: syncing it down
       # is much faster than downloading about 860 MB of release assets again.
       - name: ⬇️  Sync the package pool from S3
-        if: steps.pkgs.outputs.enabled == 'true' && steps.targets.outputs.mode != 'force' && steps.targets.outputs.targets != ''
+        if: steps.targets.outputs.mode != 'force' && steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
           mkdir -p apt/pool yum
@@ -394,7 +381,7 @@ jobs:
       # client never reads an index that names a missing file. Nothing is deleted.
       - name: ☁️  Publish to S3
         id: s3
-        if: steps.pkgs.outputs.enabled == 'true' && (steps.targets.outputs.targets != '' || github.event.inputs.republish == 'true')
+        if: steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
           B="s3://$PKGS_S3_BUCKET"
@@ -439,40 +426,6 @@ jobs:
           echo "::endgroup::"
           echo "published=true" >> "$GITHUB_OUTPUT"
 
-      - name: 🚀 Commit and push
-        id: commit
-        run: |
-          set -euo pipefail
-          git config user.name 'galtea-release-bot'
-          git config user.email 'noreply@galtea.ai'
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "::group::🟰 No changes — index is already up to date"
-            echo "  • Nothing to commit; this is normal for incremental runs that find no new releases."
-            echo "::endgroup::"
-            echo "pushed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          MODE="${{ steps.targets.outputs.mode }}"
-          EMOJI="${{ steps.targets.outputs.emoji }}"
-          TARGETS="${{ steps.targets.outputs.targets }}"
-          MSG="$EMOJI sync($MODE): $TARGETS"
-
-          echo "::group::📊 Diff summary"
-          git diff --cached --stat | tail -20 | sed 's/^/      /'
-          echo "::endgroup::"
-
-          echo "::group::🚀 Committing and pushing"
-          echo "  • Message: $MSG"
-          git commit -m "$MSG"
-          git push
-          echo "  ✔  Pushed to main — GitHub Pages will republish in 1–3 min"
-          echo "::endgroup::"
-
-          echo "pushed=true" >> "$GITHUB_OUTPUT"
-
       - name: 🏁 Run summary
         if: always()
         env:
@@ -480,7 +433,6 @@ jobs:
           EMOJI: ${{ steps.targets.outputs.emoji }}
           TARGET_COUNT: ${{ steps.targets.outputs.target_count }}
           TARGETS: ${{ steps.targets.outputs.targets }}
-          PUSHED: ${{ steps.commit.outputs.pushed }}
           S3: ${{ steps.s3.outputs.published }}
         run: |
           {
@@ -493,7 +445,6 @@ jobs:
             if [ -n "${TARGETS:-}" ]; then
               echo "| Tags | \`${TARGETS}\` |"
             fi
-            echo "| Pushed to main | ${PUSHED:-false} |"
             echo "| Published to S3 | ${S3:-false} |"
             echo "| Index URL | <https://pkgs.galtea.ai> |"
           } >> "$GITHUB_STEP_SUMMARY"
