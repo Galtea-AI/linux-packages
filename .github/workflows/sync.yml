@@ -429,9 +429,8 @@ jobs:
           set -euo pipefail
           B="s3://$PKGS_S3_BUCKET"
           LONG='public, max-age=31536000, immutable'
+          touch staging/new-rpms.txt
           SHORT='public, max-age=60'
-          # An RPM keeps a short cache: a force run signs it again under the same name.
-          RPM='public, max-age=300'
 
           echo "::group::☁️  Packages and static files"
           # --size-only: a fresh checkout stamps every file with the current time, and a
@@ -441,7 +440,7 @@ jobs:
           if [ "${{ steps.targets.outputs.mode }}" = "force" ]; then RPM_COMPARE=''; fi
           aws s3 sync apt/pool "$B/apt/pool" --size-only --cache-control "$LONG" --only-show-errors
           # shellcheck disable=SC2086
-          aws s3 sync yum "$B/yum" --exclude '*' --include '*.rpm' $RPM_COMPARE --cache-control "$RPM" --only-show-errors
+          aws s3 sync yum "$B/yum" --exclude '*' --include '*.rpm' $RPM_COMPARE --cache-control "$SHORT" --only-show-errors
           for f in public.key favicon.svg; do
             aws s3 cp "$f" "$B/$f" --cache-control "$SHORT" --only-show-errors
           done
@@ -465,9 +464,15 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::☁️  CloudFront invalidation"
+          # An RPM uploaded in this run can replace an object with the same name
+          # (a force run signs it again), so its path is invalidated too.
+          PATHS=('/apt/dists/*' '/yum/repodata/*' '/index.html')
+          while read -r name; do
+            if [ -n "$name" ]; then PATHS+=("/yum/$name"); fi
+          done < staging/new-rpms.txt
           aws cloudfront create-invalidation \
             --distribution-id "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" \
-            --paths '/apt/dists/*' '/yum/repodata/*' '/index.html' \
+            --paths "${PATHS[@]}" \
             --query 'Invalidation.Id' --output text
           echo "::endgroup::"
           echo "published=true" >> "$GITHUB_OUTPUT"
