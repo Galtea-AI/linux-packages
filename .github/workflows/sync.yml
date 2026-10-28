@@ -70,11 +70,11 @@ jobs:
 
       - name: 🛠️  Install indexing tools
         run: |
-          echo "::group::🛠️  Installing reprepro / createrepo_c / rpm / gnupg"
+          echo "::group::🛠️  Installing apt-ftparchive / createrepo_c / rpm / gnupg"
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends reprepro createrepo-c rpm gnupg
+          sudo apt-get install -y --no-install-recommends apt-utils createrepo-c rpm gnupg
           echo ""
-          echo "  • reprepro:      $(reprepro --version | head -1)"
+          echo "  • apt-ftparchive: $(apt-ftparchive --version 2>&1 | head -1)"
           echo "  • createrepo_c:  $(createrepo_c --version 2>&1 | head -1)"
           echo "  • rpmsign:       $(rpmsign --version 2>&1 | head -1)"
           echo "  • gpg:           $(gpg --version | head -1)"
@@ -190,7 +190,7 @@ jobs:
           DEB_BEFORE=$(find apt/pool -name '*.deb' 2>/dev/null | wc -l | tr -d ' ')
           RPM_BEFORE=$(find yum -maxdepth 1 -name '*.rpm' 2>/dev/null | wc -l | tr -d ' ')
           echo "  • Before: $DEB_BEFORE .deb in apt/pool, $RPM_BEFORE .rpm in yum/"
-          rm -rf apt/db apt/dists apt/pool
+          rm -rf apt/dists apt/pool
           rm -rf yum/repodata
           find yum -maxdepth 1 -type f -name '*.rpm' -delete
           rm -f .ingested-tags
@@ -222,10 +222,11 @@ jobs:
             RPM_COUNT=$(find "staging/$tag" -maxdepth 1 -name '*.rpm' | wc -l | tr -d ' ')
             echo "  ✔  Downloaded: $DEB_COUNT .deb, $RPM_COUNT .rpm"
 
-            echo "  🔨 reprepro includedeb $APT_DISTRIBUTION …"
+            echo "  🗂️  Copying .deb into apt/pool/ …"
+            mkdir -p apt/pool/main/g/galtea
             for deb in staging/"$tag"/*.deb; do
               [ -e "$deb" ] || continue
-              reprepro -b apt --waitforlock 30 includedeb "$APT_DISTRIBUTION" "$deb"
+              cp -f "$deb" apt/pool/main/g/galtea/
               echo "      + $(basename "$deb")"
             done
 
@@ -245,6 +246,39 @@ jobs:
           echo "ingested_rpm=$TOTAL_RPM" >> "$GITHUB_OUTPUT"
           echo ""
           echo "🎉 Ingested $TOTAL_DEB .deb and $TOTAL_RPM .rpm across $(echo $TARGETS | wc -w) release(s)"
+
+      # apt-ftparchive, not reprepro: reprepro 5.3 keeps one version per
+      # package, and every Debian and Ubuntu release ships 5.3. Each run
+      # indexes every .deb in the pool, so every released version stays
+      # installable with `apt install galtea=<version>`.
+      - name: 🔏 Regenerate APT index and sign Release
+        if: steps.targets.outputs.targets != ''
+        run: |
+          set -euo pipefail
+          echo "::group::🔏 apt-ftparchive + gpg on apt/dists/$APT_DISTRIBUTION"
+          cd apt
+          rm -rf dists
+          for arch in amd64 arm64; do
+            mkdir -p "dists/$APT_DISTRIBUTION/main/binary-$arch"
+            apt-ftparchive --arch "$arch" packages pool > "dists/$APT_DISTRIBUTION/main/binary-$arch/Packages"
+            gzip -9nkf "dists/$APT_DISTRIBUTION/main/binary-$arch/Packages"
+          done
+          # Written outside dists/ first: apt-ftparchive hashes every file it finds there.
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin=Galtea \
+            -o "APT::FTPArchive::Release::Label=Galtea CLI" \
+            -o "APT::FTPArchive::Release::Suite=$APT_DISTRIBUTION" \
+            -o "APT::FTPArchive::Release::Codename=$APT_DISTRIBUTION" \
+            -o "APT::FTPArchive::Release::Architectures=amd64 arm64" \
+            -o APT::FTPArchive::Release::Components=main \
+            -o "APT::FTPArchive::Release::Description=Galtea CLI APT repository" \
+            release "dists/$APT_DISTRIBUTION" > ../staging/Release
+          mv ../staging/Release "dists/$APT_DISTRIBUTION/Release"
+          gpg --batch --yes --clearsign -o "dists/$APT_DISTRIBUTION/InRelease" "dists/$APT_DISTRIBUTION/Release"
+          gpg --batch --yes --detach-sign --armor -o "dists/$APT_DISTRIBUTION/Release.gpg" "dists/$APT_DISTRIBUTION/Release"
+          echo "  ✔  APT index regenerated and signed"
+          grep -h '^Version' dists/"$APT_DISTRIBUTION"/main/binary-amd64/Packages | sed 's/^/      /'
+          echo "::endgroup::"
 
       - name: 🔏 Sign .rpm packages
         if: steps.targets.outputs.targets != ''

@@ -47,6 +47,19 @@ sudo apt update && sudo apt upgrade galtea     # Debian / Ubuntu
 sudo dnf upgrade galtea                         # Fedora / RHEL
 ```
 
+## Install an older version
+
+Both repositories keep every release, so you can install the CLI that matches an older Galtea platform:
+
+```bash
+apt list -a galtea                              # Debian / Ubuntu: list the versions
+sudo apt install galtea=5.4.0
+sudo apt-mark hold galtea                       # keep it at that version on upgrade
+
+dnf list --showduplicates galtea                # Fedora / RHEL: list the versions
+sudo dnf install galtea-5.4.0
+```
+
 ## Uninstall
 
 ```bash
