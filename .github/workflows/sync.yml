@@ -302,8 +302,20 @@ jobs:
             -o "APT::FTPArchive::Release::Architectures=amd64 arm64" \
             -o APT::FTPArchive::Release::Components=main \
             -o "APT::FTPArchive::Release::Description=Galtea CLI APT repository" \
+            -o APT::FTPArchive::Release::Acquire-By-Hash=yes \
             release "dists/$APT_DISTRIBUTION" > ../staging/Release
           mv ../staging/Release "dists/$APT_DISTRIBUTION/Release"
+          # By-hash copies, made after Release is hashed. The bucket never deletes them,
+          # so a client holding an older InRelease still finds the Packages it names.
+          # apt asks for the strongest hash Release lists, which is SHA512.
+          for arch in amd64 arm64; do
+            bin="dists/$APT_DISTRIBUTION/main/binary-$arch"
+            mkdir -p "$bin/by-hash/SHA256" "$bin/by-hash/SHA512"
+            for f in "$bin/Packages" "$bin/Packages.gz"; do
+              cp "$f" "$bin/by-hash/SHA256/$(sha256sum "$f" | cut -d' ' -f1)"
+              cp "$f" "$bin/by-hash/SHA512/$(sha512sum "$f" | cut -d' ' -f1)"
+            done
+          done
           gpg --batch --yes --clearsign -o "dists/$APT_DISTRIBUTION/InRelease" "dists/$APT_DISTRIBUTION/Release"
           gpg --batch --yes --detach-sign --armor -o "dists/$APT_DISTRIBUTION/Release.gpg" "dists/$APT_DISTRIBUTION/Release"
           echo "  ✔  APT index regenerated and signed"
@@ -357,28 +369,57 @@ jobs:
           sed 's/^/      /' .ingested-tags
           echo "::endgroup::"
 
-      # Order matters: packages before the indexes that name them, stale
-      # packages removed only after the indexes stop naming them, and the
-      # manifest last so a failed run is retried by the next one.
+      # Order matters, so that a client reading during the upload, or a run that
+      # fails partway, never sees an index that names a missing file:
+      # packages, then the by-hash and hashed index files (never deleted), then the
+      # entry points (InRelease, Release, repomd.xml), then the invalidation, then
+      # stale packages, and the manifest last so a failed run is retried by the next one.
       - name: 🚀 Upload to S3
         id: upload
         if: steps.targets.outputs.targets != ''
+        env:
+          PKGS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PKGS_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           set -euo pipefail
           BUCKET="s3://$PKGS_S3_BUCKET"
+          D="apt/dists/$APT_DISTRIBUTION"
           echo "::group::🚀 aws s3 sync → $BUCKET"
           aws s3 sync apt/pool "$BUCKET/apt/pool" --only-show-errors
           aws s3 sync yum "$BUCKET/yum" --exclude 'repodata/*' --only-show-errors
-          aws s3 sync apt/dists "$BUCKET/apt/dists" --delete --only-show-errors
-          aws s3 sync yum/repodata "$BUCKET/yum/repodata" --delete --only-show-errors
-          aws s3 sync apt/pool "$BUCKET/apt/pool" --delete --only-show-errors
-          aws s3 sync yum "$BUCKET/yum" --exclude 'repodata/*' --delete --only-show-errors
+          for arch in amd64 arm64; do
+            aws s3 sync "$D/main/binary-$arch/by-hash" "$BUCKET/$D/main/binary-$arch/by-hash" --only-show-errors
+          done
+          aws s3 sync "$D/main" "$BUCKET/$D/main" --exclude '*/by-hash/*' --only-show-errors
+          for file in Release Release.gpg InRelease; do
+            aws s3 cp "$D/$file" "$BUCKET/$D/$file" --only-show-errors
+          done
+          aws s3 sync yum/repodata "$BUCKET/yum/repodata" --exclude 'repomd.xml*' --only-show-errors
+          aws s3 cp yum/repodata/repomd.xml "$BUCKET/yum/repodata/repomd.xml" --only-show-errors
+          aws s3 cp yum/repodata/repomd.xml.asc "$BUCKET/yum/repodata/repomd.xml.asc" --only-show-errors
           for file in index.html public.key favicon.svg; do
             aws s3 cp "$file" "$BUCKET/$file" --only-show-errors
           done
-          aws s3 cp .ingested-tags "$BUCKET/.ingested-tags" --only-show-errors
-          echo "  ✔  Uploaded; CloudFront serves the new indexes within 60 s"
           echo "::endgroup::"
+
+          echo "::group::☁️  CloudFront invalidation"
+          # The entry points must reach every edge together. A reindexed RPM is
+          # signed again under the same name, so its path is invalidated too.
+          PATHS=('/apt/dists/*' '/yum/repodata/*' '/index.html')
+          for rpm in staging/*/*.rpm; do
+            if [ -e "$rpm" ]; then PATHS+=("/yum/$(basename "$rpm")"); fi
+          done
+          aws cloudfront create-invalidation \
+            --distribution-id "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths "${PATHS[@]}" \
+            --query 'Invalidation.Id' --output text
+          echo "::endgroup::"
+
+          echo "::group::🧹 Remove packages no index names"
+          aws s3 sync apt/pool "$BUCKET/apt/pool" --delete --only-show-errors
+          aws s3 sync yum "$BUCKET/yum" --exclude 'repodata/*' --delete --only-show-errors
+          echo "::endgroup::"
+
+          aws s3 cp .ingested-tags "$BUCKET/.ingested-tags" --only-show-errors
           echo "uploaded=true" >> "$GITHUB_OUTPUT"
 
       - name: 🏁 Run summary
