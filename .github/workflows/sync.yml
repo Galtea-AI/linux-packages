@@ -22,31 +22,51 @@ on:
     - cron: '0 6 * * *'
 
 permissions:
-  contents: write
+  contents: read
+  id-token: write
 
 concurrency:
   group: linux-packages-sync
   cancel-in-progress: false
 
+# pkgs.galtea.ai is served by CloudFront from the bucket, which is the only
+# copy of the repository. The variables come from the platform `pkgs` unit.
 env:
   MONOREPO: Galtea-AI/monorepo
   APT_DISTRIBUTION: stable
+  AWS_REGION: eu-west-1
+  PKGS_S3_BUCKET: ${{ vars.PKGS_S3_BUCKET }}
 
 jobs:
   sync:
     name: 🔄 Sync index
     runs-on: ubuntu-latest
+    # No `environment:`: the publish role trusts only the OIDC subject of main.
     steps:
       - name: 📥 Checkout linux-packages
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          fetch-depth: 0
-          # PAT (org-level secret) belonging to an org/repo admin — the org
-          # ruleset `prevent-push-on-main-copilot` bypasses Organization
-          # admin / Repository admin roles, so this is the actor that can
-          # `git push` to main from CI. The default GITHUB_TOKEN authenticates
-          # as github-actions[bot] which is not in any bypass list.
-          token: ${{ secrets.GALTEA_AI_RELEASES_PAT }}
+          persist-credentials: false
+
+      - name: ☁️  Sign in to AWS
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7  # v6.0.0
+        with:
+          role-to-assume: ${{ vars.PKGS_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 📥 Read the ingested-tags manifest from S3
+        id: manifest
+        run: |
+          set -euo pipefail
+          # The packages in git are not the published repository; the bucket is.
+          rm -rf apt yum .ingested-tags
+          if aws s3 cp "s3://$PKGS_S3_BUCKET/.ingested-tags" .ingested-tags --only-show-errors; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "  • $(wc -l < .ingested-tags | tr -d ' ') tag(s) already in s3://$PKGS_S3_BUCKET"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "  • s3://$PKGS_S3_BUCKET has no .ingested-tags yet"
+          fi
 
       - name: 🛎️  Trigger context
         env:
@@ -70,11 +90,11 @@ jobs:
 
       - name: 🛠️  Install indexing tools
         run: |
-          echo "::group::🛠️  Installing reprepro / createrepo_c / rpm / gnupg"
+          echo "::group::🛠️  Installing apt-ftparchive / createrepo_c / rpm / gnupg"
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends reprepro createrepo-c rpm gnupg
+          sudo apt-get install -y --no-install-recommends apt-utils createrepo-c rpm gnupg
           echo ""
-          echo "  • reprepro:      $(reprepro --version | head -1)"
+          echo "  • apt-ftparchive: $(apt-ftparchive --version 2>&1 | head -1)"
           echo "  • createrepo_c:  $(createrepo_c --version 2>&1 | head -1)"
           echo "  • rpmsign:       $(rpmsign --version 2>&1 | head -1)"
           echo "  • gpg:           $(gpg --version | head -1)"
@@ -110,8 +130,16 @@ jobs:
           GH_TOKEN: ${{ secrets.MONOREPO_READ_TOKEN }}
           FORCE: ${{ github.event.inputs.force || 'false' }}
           VERSION: ${{ github.event.inputs.version || '' }}
+          MANIFEST_FOUND: ${{ steps.manifest.outputs.found }}
         run: |
           set -euo pipefail
+
+          # Without a manifest an incremental run would upload every release,
+          # so the first fill stays an explicit force run.
+          if [ "$FORCE" != "true" ] && [ "$MANIFEST_FOUND" != "true" ]; then
+            echo "::error::s3://$PKGS_S3_BUCKET has no .ingested-tags. Fill the bucket with a force run first."
+            exit 1
+          fi
 
           echo "::group::📡 Listing CLI releases on $MONOREPO"
           # Note: GoReleaser's nfpms uses different separator conventions per format —
@@ -148,7 +176,7 @@ jobs:
             EMOJI="➕"
             REASON="incremental sync — adding only releases missing from the index"
             TARGETS=""
-            # Source of truth = .ingested-tags (manifest committed to repo).
+            # Source of truth = .ingested-tags (manifest stored in the bucket).
             # We previously inferred filenames from the tag name, but goreleaser's
             # snapshot builds bake a "next" version into the artifact name that
             # bears no relation to the tag, so the filename glob never matched
@@ -182,19 +210,20 @@ jobs:
           fi
           echo "::endgroup::"
 
-      - name: 🧹 Force mode — wipe existing index
+      # A force run starts from an empty tree; the upload's --delete then
+      # removes from the bucket every file this run did not rebuild.
+      - name: 🧹 Force mode — start from an empty index
         if: steps.targets.outputs.mode == 'force'
+        run: rm -f .ingested-tags
+
+      - name: ⬇️  Download the current repository from S3
+        if: steps.targets.outputs.targets != '' && steps.targets.outputs.mode != 'force'
         run: |
           set -euo pipefail
-          echo "::group::🧹 Wiping existing index (force mode)"
-          DEB_BEFORE=$(find apt/pool -name '*.deb' 2>/dev/null | wc -l | tr -d ' ')
-          RPM_BEFORE=$(find yum -maxdepth 1 -name '*.rpm' 2>/dev/null | wc -l | tr -d ' ')
-          echo "  • Before: $DEB_BEFORE .deb in apt/pool, $RPM_BEFORE .rpm in yum/"
-          rm -rf apt/db apt/dists apt/pool
-          rm -rf yum/repodata
-          find yum -maxdepth 1 -type f -name '*.rpm' -delete
-          rm -f .ingested-tags
-          echo "  • After:  index wiped — every artifact will be re-ingested"
+          echo "::group::⬇️  aws s3 sync s3://$PKGS_S3_BUCKET → apt/ yum/"
+          aws s3 sync "s3://$PKGS_S3_BUCKET/apt" apt --only-show-errors
+          aws s3 sync "s3://$PKGS_S3_BUCKET/yum" yum --only-show-errors
+          echo "  • $(find apt/pool -name '*.deb' 2>/dev/null | wc -l | tr -d ' ') .deb, $(find yum -maxdepth 1 -name '*.rpm' 2>/dev/null | wc -l | tr -d ' ') .rpm"
           echo "::endgroup::"
 
       - name: ⬇️  Download and ingest target releases
@@ -222,14 +251,16 @@ jobs:
             RPM_COUNT=$(find "staging/$tag" -maxdepth 1 -name '*.rpm' | wc -l | tr -d ' ')
             echo "  ✔  Downloaded: $DEB_COUNT .deb, $RPM_COUNT .rpm"
 
-            echo "  🔨 reprepro includedeb $APT_DISTRIBUTION …"
+            echo "  🗂️  Copying .deb into apt/pool/ …"
+            mkdir -p apt/pool/main/g/galtea
             for deb in staging/"$tag"/*.deb; do
               [ -e "$deb" ] || continue
-              reprepro -b apt --waitforlock 30 includedeb "$APT_DISTRIBUTION" "$deb"
+              cp -f "$deb" apt/pool/main/g/galtea/
               echo "      + $(basename "$deb")"
             done
 
             echo "  🗂️  Copying .rpm into yum/ …"
+            mkdir -p yum
             for rpm in staging/"$tag"/*.rpm; do
               [ -e "$rpm" ] || continue
               cp -f "$rpm" yum/
@@ -246,19 +277,64 @@ jobs:
           echo ""
           echo "🎉 Ingested $TOTAL_DEB .deb and $TOTAL_RPM .rpm across $(echo $TARGETS | wc -w) release(s)"
 
+      # apt-ftparchive, not reprepro: reprepro 5.3 keeps one version per
+      # package, and every Debian and Ubuntu release ships 5.3. Each run
+      # indexes every .deb in the pool, so every released version stays
+      # installable with `apt install galtea=<version>`.
+      - name: 🔏 Regenerate APT index and sign Release
+        if: steps.targets.outputs.targets != ''
+        run: |
+          set -euo pipefail
+          echo "::group::🔏 apt-ftparchive + gpg on apt/dists/$APT_DISTRIBUTION"
+          cd apt
+          rm -rf dists
+          for arch in amd64 arm64; do
+            mkdir -p "dists/$APT_DISTRIBUTION/main/binary-$arch"
+            apt-ftparchive --arch "$arch" packages pool > "dists/$APT_DISTRIBUTION/main/binary-$arch/Packages"
+            gzip -9nkf "dists/$APT_DISTRIBUTION/main/binary-$arch/Packages"
+          done
+          # Written outside dists/ first: apt-ftparchive hashes every file it finds there.
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin=Galtea \
+            -o "APT::FTPArchive::Release::Label=Galtea CLI" \
+            -o "APT::FTPArchive::Release::Suite=$APT_DISTRIBUTION" \
+            -o "APT::FTPArchive::Release::Codename=$APT_DISTRIBUTION" \
+            -o "APT::FTPArchive::Release::Architectures=amd64 arm64" \
+            -o APT::FTPArchive::Release::Components=main \
+            -o "APT::FTPArchive::Release::Description=Galtea CLI APT repository" \
+            -o APT::FTPArchive::Release::Acquire-By-Hash=yes \
+            release "dists/$APT_DISTRIBUTION" > ../staging/Release
+          mv ../staging/Release "dists/$APT_DISTRIBUTION/Release"
+          # By-hash copies, made after Release is hashed. The bucket never deletes them,
+          # so a client holding an older InRelease still finds the Packages it names.
+          # apt asks for the strongest hash Release lists, which is SHA512.
+          for arch in amd64 arm64; do
+            bin="dists/$APT_DISTRIBUTION/main/binary-$arch"
+            mkdir -p "$bin/by-hash/SHA256" "$bin/by-hash/SHA512"
+            for f in "$bin/Packages" "$bin/Packages.gz"; do
+              cp "$f" "$bin/by-hash/SHA256/$(sha256sum "$f" | cut -d' ' -f1)"
+              cp "$f" "$bin/by-hash/SHA512/$(sha512sum "$f" | cut -d' ' -f1)"
+            done
+          done
+          gpg --batch --yes --clearsign -o "dists/$APT_DISTRIBUTION/InRelease" "dists/$APT_DISTRIBUTION/Release"
+          gpg --batch --yes --detach-sign --armor -o "dists/$APT_DISTRIBUTION/Release.gpg" "dists/$APT_DISTRIBUTION/Release"
+          echo "  ✔  APT index regenerated and signed"
+          grep -h '^Version' dists/"$APT_DISTRIBUTION"/main/binary-amd64/Packages | sed 's/^/      /'
+          echo "::endgroup::"
+
       - name: 🔏 Sign .rpm packages
         if: steps.targets.outputs.targets != ''
         run: |
           set -euo pipefail
-          echo "::group::🔏 rpmsign --addsign on every .rpm in yum/"
+          echo "::group::🔏 rpmsign --addsign on the .rpm files this run ingested"
           # DNF with gpgcheck=1 validates BOTH the repodata signature
           # (repomd.xml.asc) AND the embedded signature inside each .rpm.
           # GoReleaser's nfpms produces unsigned .rpm files, so we sign
-          # them here with the same release-signing key. Idempotent —
-          # rpmsign overwrites any existing embedded signature.
+          # them here with the same release-signing key. Only new files:
+          # re-signing changes the bytes, so the upload would resend every .rpm.
           shopt -s nullglob
-          for rpm in yum/*.rpm; do
-            rpmsign --addsign "$rpm"
+          for rpm in staging/*/*.rpm; do
+            rpmsign --addsign "yum/$(basename "$rpm")"
             echo "  ✔  $(basename "$rpm")"
           done
           echo "::endgroup::"
@@ -293,39 +369,58 @@ jobs:
           sed 's/^/      /' .ingested-tags
           echo "::endgroup::"
 
-      - name: 🚀 Commit and push
-        id: commit
+      # Order matters, so that a client reading during the upload, or a run that
+      # fails partway, never sees an index that names a missing file:
+      # packages, then the by-hash and hashed index files (never deleted), then the
+      # entry points (InRelease, Release, repomd.xml), then the invalidation, then
+      # stale packages, and the manifest last so a failed run is retried by the next one.
+      - name: 🚀 Upload to S3
+        id: upload
+        if: steps.targets.outputs.targets != ''
+        env:
+          PKGS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PKGS_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           set -euo pipefail
-          git config user.name 'galtea-release-bot'
-          git config user.email 'noreply@galtea.ai'
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "::group::🟰 No changes — index is already up to date"
-            echo "  • Nothing to commit; this is normal for incremental runs that find no new releases."
-            echo "::endgroup::"
-            echo "pushed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          MODE="${{ steps.targets.outputs.mode }}"
-          EMOJI="${{ steps.targets.outputs.emoji }}"
-          TARGETS="${{ steps.targets.outputs.targets }}"
-          MSG="$EMOJI sync($MODE): $TARGETS"
-
-          echo "::group::📊 Diff summary"
-          git diff --cached --stat | tail -20 | sed 's/^/      /'
+          BUCKET="s3://$PKGS_S3_BUCKET"
+          D="apt/dists/$APT_DISTRIBUTION"
+          echo "::group::🚀 aws s3 sync → $BUCKET"
+          aws s3 sync apt/pool "$BUCKET/apt/pool" --only-show-errors
+          aws s3 sync yum "$BUCKET/yum" --exclude 'repodata/*' --only-show-errors
+          for arch in amd64 arm64; do
+            aws s3 sync "$D/main/binary-$arch/by-hash" "$BUCKET/$D/main/binary-$arch/by-hash" --only-show-errors
+          done
+          aws s3 sync "$D/main" "$BUCKET/$D/main" --exclude '*/by-hash/*' --only-show-errors
+          for file in Release Release.gpg InRelease; do
+            aws s3 cp "$D/$file" "$BUCKET/$D/$file" --only-show-errors
+          done
+          aws s3 sync yum/repodata "$BUCKET/yum/repodata" --exclude 'repomd.xml*' --only-show-errors
+          aws s3 cp yum/repodata/repomd.xml "$BUCKET/yum/repodata/repomd.xml" --only-show-errors
+          aws s3 cp yum/repodata/repomd.xml.asc "$BUCKET/yum/repodata/repomd.xml.asc" --only-show-errors
+          for file in index.html public.key favicon.svg; do
+            aws s3 cp "$file" "$BUCKET/$file" --only-show-errors
+          done
           echo "::endgroup::"
 
-          echo "::group::🚀 Committing and pushing"
-          echo "  • Message: $MSG"
-          git commit -m "$MSG"
-          git push
-          echo "  ✔  Pushed to main — GitHub Pages will republish in 1–3 min"
+          echo "::group::☁️  CloudFront invalidation"
+          # The entry points must reach every edge together. A reindexed RPM is
+          # signed again under the same name, so its path is invalidated too.
+          PATHS=('/apt/dists/*' '/yum/repodata/*' '/index.html')
+          for rpm in staging/*/*.rpm; do
+            if [ -e "$rpm" ]; then PATHS+=("/yum/$(basename "$rpm")"); fi
+          done
+          aws cloudfront create-invalidation \
+            --distribution-id "$PKGS_CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths "${PATHS[@]}" \
+            --query 'Invalidation.Id' --output text
           echo "::endgroup::"
 
-          echo "pushed=true" >> "$GITHUB_OUTPUT"
+          echo "::group::🧹 Remove packages no index names"
+          aws s3 sync apt/pool "$BUCKET/apt/pool" --delete --only-show-errors
+          aws s3 sync yum "$BUCKET/yum" --exclude 'repodata/*' --delete --only-show-errors
+          echo "::endgroup::"
+
+          aws s3 cp .ingested-tags "$BUCKET/.ingested-tags" --only-show-errors
+          echo "uploaded=true" >> "$GITHUB_OUTPUT"
 
       - name: 🏁 Run summary
         if: always()
@@ -334,7 +429,7 @@ jobs:
           EMOJI: ${{ steps.targets.outputs.emoji }}
           TARGET_COUNT: ${{ steps.targets.outputs.target_count }}
           TARGETS: ${{ steps.targets.outputs.targets }}
-          PUSHED: ${{ steps.commit.outputs.pushed }}
+          UPLOADED: ${{ steps.upload.outputs.uploaded }}
         run: |
           {
             echo "## ${EMOJI:-🟰} Sync run summary"
@@ -346,6 +441,6 @@ jobs:
             if [ -n "${TARGETS:-}" ]; then
               echo "| Tags | \`${TARGETS}\` |"
             fi
-            echo "| Pushed to main | ${PUSHED:-false} |"
+            echo "| Uploaded to S3 | ${UPLOADED:-false} |"
             echo "| Index URL | <https://pkgs.galtea.ai> |"
           } >> "$GITHUB_STEP_SUMMARY"
