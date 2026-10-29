@@ -4,3 +4,8 @@ staging/
 # OS / editor noise
 .DS_Store
 *.swp
+
+# The repository is published to S3 by sync.yml; it is never committed
+apt/
+yum/
+.ingested-tags

@@ -1,6 +1,0 @@
-Archive: stable
-Component: main
-Origin: Galtea
-Label: Galtea CLI
-Architecture: amd64
-Description: Galtea CLI APT repository
